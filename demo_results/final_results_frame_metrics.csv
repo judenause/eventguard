@@ -1,0 +1,48 @@
+﻿--- Overall Aggregated Frame-Level Metrics ---
+Metric,Value
+"Avg Per File Tp","132179.000000"
+"Avg Per File Fp","369.000000"
+"Avg Per File Tn","94735.000000"
+"Avg Per File Fn","3220.000000"
+"Avg Per File Accuracy","0.984430"
+"Avg Per File Precision","0.997216"
+"Avg Per File Recall","0.976218"
+"Avg Per File F1","0.986606"
+"Avg Per File Auc","0.990183"
+"Avg Per File Signal Retain Sr","0.976218"
+"Avg Per File Noise Removal Nr","0.996120"
+"Avg Per File Denoising Accuracy Da","0.986169"
+"Avg Per File Hallucinated Pixels","278184.000000"
+"Avg Per File Snr Tp Fp","25.541361"
+"Total Tp","132179"
+"Total Fp","369"
+"Total Tn","94735"
+"Total Fn","3220"
+"Overall Accuracy","0.984430"
+"Overall Precision","0.997216"
+"Overall Recall","0.976218"
+"Overall F1","0.986606"
+"Overall Snr Tp Fp","25.541361"
+"Overall Frame Auc","0.990183"
+
+--- Detailed Per-File Metrics ---
+file_name,tp,fp,tn,fn,accuracy,precision,recall,f1,auc,signal_retain_sr,noise_removal_nr,denoising_accuracy_da,pred_classes_last_step,pred_probs_last_step,hallucinated_pixels,snr_tp_fp
+MAH00444_50.npy,132179,369,94735,3220,0.9844297037348755,0.9972161028457609,0.976218435882096,0.986605560004792,0.9901830538504278,0.976218435882096,0.9961200370121119,0.986169236447104,"[[[0. 0. 0. ... 0. 0. 0.]
+  [0. 0. 0. ... 0. 0. 0.]
+  [0. 0. 0. ... 0. 0. 0.]
+  ...
+  [0. 0. 0. ... 0. 0. 0.]
+  [0. 0. 0. ... 0. 0. 0.]
+  [0. 0. 0. ... 0. 0. 0.]]]","[[[3.35350138e-04 8.31528041e-07 8.31528041e-07 ... 8.31528041e-07
+   8.31528041e-07 6.14417422e-06]
+  [8.31528041e-07 2.06115369e-09 2.06115369e-09 ... 2.06115369e-09
+   2.06115369e-09 1.12535155e-07]
+  [8.31528041e-07 2.06115369e-09 2.06115369e-09 ... 2.06115369e-09
+   2.06115369e-09 1.12535155e-07]
+  ...
+  [8.31528041e-07 2.06115369e-09 2.06115369e-09 ... 2.06115369e-09
+   2.06115369e-09 1.12535155e-07]
+  [8.31528041e-07 2.06115369e-09 2.06115369e-09 ... 2.06115369e-09
+   2.06115369e-09 1.12535155e-07]
+  [3.35350138e-04 1.52299808e-08 1.52299808e-08 ... 1.52299808e-08
+   1.52299808e-08 1.52299808e-08]]]",278184,25.54136095733497

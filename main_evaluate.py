@@ -64,7 +64,7 @@ def load_model_for_evaluation(model_path: str, config: cfg, device: torch.device
         if all(key.startswith('module.') for key in state_dict.keys()):
             state_dict = OrderedDict([(k[7:], v) for k, v in state_dict.items()])
             
-        model.load_state_dict(state_dict)
+        model.load_state_dict(state_dict, strict=False)
         print("✅ Model loaded successfully for evaluation.")
         return model
     except Exception as e:
@@ -167,15 +167,33 @@ def main_evaluation_pipeline(args):
     # --- 6. 시각화 ---
     if args.create_eval_gif and preds_seqs:
         print("\n--- 6. Generating Visualization GIF ---")
-        create_evaluation_gif(
-            input_frames_seq=test_data_list[0]['input_frames'],
-            real_gt_frames_seq=test_data_list[0]['real_event_gt'],
-            noise_gt_frames_seq=test_data_list[0]['noise_event_gt'],
-            predicted_frames_seq=preds_seqs[0],
-            eval_mask_frames_seq=test_data_list[0]['evaluation_mask'],
-            config_obj=cfg,
-            output_gif_filename_base=f"eval_{os.path.splitext(args.model_file)[0]}"
-        )
+        
+        # Lazy Loading 대응: 필요 시 프레임 로드
+        first_data = test_data_list[0]
+        if 'input_frames' not in first_data and 'processed_path' in first_data:
+            stacked_data = np.load(first_data['processed_path'], mmap_mode='r')
+            input_frames = stacked_data[:, 0]
+            real_gt = stacked_data[:, 1]
+            noise_gt = stacked_data[:, 2]
+            eval_mask = stacked_data[:, 3]
+        else:
+            input_frames = first_data.get('input_frames')
+            real_gt = first_data.get('real_event_gt')
+            noise_gt = first_data.get('noise_event_gt')
+            eval_mask = first_data.get('evaluation_mask')
+
+        if input_frames is not None:
+            create_evaluation_gif(
+                input_frames_seq=input_frames,
+                real_gt_frames_seq=real_gt,
+                noise_gt_frames_seq=noise_gt,
+                predicted_frames_seq=preds_seqs[0],
+                eval_mask_frames_seq=eval_mask,
+                config_obj=cfg,
+                output_gif_filename_base=f"eval_{os.path.splitext(args.model_file)[0]}"
+            )
+        else:
+            print("  - Warning: Could not load frames for visualization.")
 
     print(f"\n--- Evaluation Finished. Total time: {(time.time() - start_time)/60:.2f} minutes ---")
 

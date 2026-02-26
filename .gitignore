@@ -11,6 +11,7 @@ logs/
 *.pt
 !sample_data/*.npy
 !weights/*.pth
+!demo_results/*
 
 *.log
 *.txt

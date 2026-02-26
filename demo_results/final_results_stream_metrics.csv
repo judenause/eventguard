@@ -1,0 +1,33 @@
+﻿--- Overall Aggregated Event-Stream Level Metrics ---
+Metric,Value
+"Avg Per File Precision Event","0.998009"
+"Avg Per File Recall Event","0.983068"
+"Avg Per File F1 Event","0.990482"
+"Avg Per File Noise Rejection Rate Event","0.996078"
+"Avg Per File Event Snr Db","27.000787"
+"Avg Per File Signal Retain Sr","0.983068"
+"Avg Per File Noise Removal Nr","0.996078"
+"Avg Per File Denoising Accuracy Da","0.989573"
+"Avg Per File Event Denoising Precision Edp","0.998009"
+"Avg Per File Event Esnr Db","54.001574"
+"Avg Per File Event Stream Auc","0.992701"
+"Total Tp Event","374956"
+"Total Fp Event","748"
+"Total Fn Event","6458"
+"Total Tn Event","189958"
+"Overall Precision Event","0.998009"
+"Overall Recall Event","0.983068"
+"Overall F1 Event","0.990482"
+"Overall Noise Rejection Rate Event","0.996078"
+"Overall Snr Tp Fp Event","27.000787"
+"Overall Signal Retain Sr","0.983068"
+"Overall Noise Removal Nr","0.996078"
+"Overall Denoising Accuracy Da","0.989573"
+"Overall Event Denoising Precision Edp","0.998009"
+"Overall Event Snr Esnr Db","54.001574"
+"Overall Event Stream Auc","0.992701"
+
+--- Detailed Per-File Metrics ---
+file_name,tp_event,fp_event,fn_event,tn_event,precision_event,recall_event,f1_event,noise_rejection_rate_event,event_snr_db,total_gt_signal_events_stream,total_gt_noise_events_stream,total_denoised_events_stream,signal_retain_sr,noise_removal_nr,denoising_accuracy_da,event_denoising_precision_edp,event_esnr_db,event_stream_auc
+MAH00444_50.npy,187478,374,3229,94979,0.9980090709707637,0.9830682670274291,0.990482328992503,0.9960777322160802,27.000787096542076,190707,95353,187852,0.9830682670274291,0.9960777322160802,0.9895729996217546,0.9980090709707637,54.00157419308415,0.9927008514603887
+MAH00444_50.npy,187478,374,3229,94979,0.9980090709707637,0.9830682670274291,0.990482328992503,0.9960777322160802,27.000787096542076,190707,95353,187852,0.9830682670274291,0.9960777322160802,0.9895729996217546,0.9980090709707637,54.00157419308415,0.9927008514603887

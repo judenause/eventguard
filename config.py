@@ -69,6 +69,7 @@ class Config:
     # --- Others ---
     SEED = 3407
     SAVE_DIR = f'./results/run_{datetime.now().strftime("%Y%m%d_%H%M")}'
+    CSV_NAME = 'final_results'
     
     # --- Dynamic values (do not change) ---
     DEVICE = None
