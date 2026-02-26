@@ -2,28 +2,28 @@
 import numpy as np
 import os
 import glob
-from tqdm import tqdm # Progress bar for file processing
+from tqdm import tqdm # 파일 처리 진행 상황 표시
 import math
-# --- 1. Modified events_to_frames function ---
-# Now returns min_timestamp as well.
+# --- ★ 1. events_to_frames 함수 수정 ★ ---
+# 반환 값에 min_timestamp를 추가합니다.
 def events_to_frames(events: np.ndarray,
                      fps: int,
                      frame_width: int,
                      frame_height: int) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, float]: # 반환 타입에 float 추가
     """
-    Converts raw event data to various frame representations.
+    Raw event data를 다양한 프레임 표현으로 변환합니다. (수정된 버전)
     """
     if not isinstance(events, np.ndarray) or events.ndim != 2 or events.shape[1] != 5 or len(events) == 0:
         empty_frames = np.empty((0, frame_height, frame_width), dtype=np.float32)
-        # Return 0.0 for min_timestamp
+        # min_timestamp로 0.0을 반환
         return empty_frames, empty_frames, empty_frames, empty_frames, 0.0
 
     # --- 1. 시간 기준점 설정 및 프레임 인덱스 계산 (벡터화 방식) ---
     events = events[np.argsort(events[:, 3])]
-    min_timestamp = events[0, 3] # This value needs to be returned.
+    min_timestamp = events[0, 3] # 이 값을 반환해야 합니다.
     time_window_duration = 1.0 / fps
 
-    # ... (Rest of the function logic) ...
+    # ... (함수의 나머지 부분은 기존과 동일) ...
     frame_indices = np.floor((events[:, 3] - min_timestamp) / time_window_duration).astype(int)
     num_frames = frame_indices.max() + 1
     
@@ -51,7 +51,7 @@ def events_to_frames(events: np.ndarray,
 
     all_evaluation_mask = all_input_frames
 
-    # Add min_timestamp to return values
+    # ★ 마지막 반환 값에 min_timestamp 추가 ★
     return all_input_frames, all_real_event_gt, all_noise_event_gt, all_evaluation_mask, min_timestamp
 # def events_to_frames(events: np.ndarray,
 #                      fps: int,
@@ -165,7 +165,7 @@ def process_folder_to_frame_lists(folder_path: str,
                     # Fallback to normal processing if cache read fails
 
             # --- Normal Processing (If Cache Missing) ---
-            raw_events = np.load(npy_file_path) # Original event stream (including labels)
+            raw_events = np.load(npy_file_path) # 원본 이벤트 스트림 (레이블 포함)
 
             if not isinstance(raw_events, np.ndarray) or raw_events.ndim != 2 or raw_events.shape[1] != 5:
                 print(f"    - Warning for {base_filename}: Invalid data format. Skipping file.")
@@ -174,14 +174,15 @@ def process_folder_to_frame_lists(folder_path: str,
                 print(f"    - Info for {base_filename}: File is empty. Skipping file.")
                 continue
 
+            # events_to_frames 함수 호출하여 BAF 프레임 데이터 생성
             input_f, real_gt_f, noise_gt_f, eval_mask_f, min_ts = events_to_frames(
-                raw_events, # raw_events is the original stream with signal/noise labels
+                raw_events, # 여기서 raw_events는 신호/노이즈 레이블이 있는 원본 스트림
                 fps=config_obj.FPS,
                 frame_width=config_obj.FRAME_WIDTH,
                 frame_height=config_obj.FRAME_HEIGHT
             )
 
-            if input_f.shape[0] >= config_obj.WINDOW_SIZE: # WINDOW_SIZE is the sequence length for train/inference
+            if input_f.shape[0] >= config_obj.WINDOW_SIZE: # WINDOW_SIZE는 학습/추론 시퀀스 길이
                 # --- Lazy Loading: Save to Disk (Stacked for mmap) ---
                 # save_dir and final_save_dir are already defined above.
                 os.makedirs(final_save_dir, exist_ok=True)
@@ -203,7 +204,7 @@ def process_folder_to_frame_lists(folder_path: str,
                     # 'original_labeled_event_stream': raw_events # Removed to save RAM. Load if needed.
                 })
             else:
-                # Minimize logging when using tqdm
+                # tqdm 사용 시 로그 최소화
                 pass 
 
         except Exception as e:
@@ -213,9 +214,10 @@ def process_folder_to_frame_lists(folder_path: str,
     return processed_files_data_list
 
 
-# (Optional) Sliding window generation function
-# Note: This is not strictly required for EventFrameLazyDataset as it handles slicing internally,
-# but can be kept for reference or used with EventFrameWindowDataset.
+# (참고) 슬라이딩 윈도우 생성 함수 (원본 파일의 In[8] 부분)
+# 이 함수는 EventFrameLazyDataset을 사용할 경우 dataset.py 내부에서 직접 슬라이싱하므로
+# data_processing.py에 필수는 아니지만, 참고용으로 남겨둘 수 있습니다.
+# 만약 미리 모든 윈도우를 생성하는 방식(EventFrameWindowDataset)을 사용한다면 이 함수가 필요합니다.
 def create_all_sliding_windows(input_frames_seq: np.ndarray,
                                real_gt_frames_seq: np.ndarray,
                                noise_gt_frames_seq: np.ndarray,

@@ -10,7 +10,7 @@ import argparse
 import pandas as pd
 from collections import OrderedDict
 
-# --- Project module imports ---
+# --- 프로젝트 모듈 임포트 ---
 from config import cfg
 from utils import save_metrics_to_csv,setup_device_and_batch_size, set_seed_all, create_save_directories, visualize_training_history, TverskyLoss, focal_loss, FocalTverskyLoss
 from data_processing import process_folder_to_frame_lists
@@ -20,7 +20,7 @@ from train_engine import train_one_epoch, validate_one_epoch
 from evaluation_engine import evaluate_model_on_dataset
 
 # def save_metrics_to_csv(filename, results_dir, aggregated_metrics, per_file_metrics_list, summary_title):
-#     """Utility function to save summary and details to a CSV file"""
+#     """요약과 상세 내역을 포함하여 CSV 파일로 저장하는 유틸리티 함수"""
 #     valid_metrics_list = [m for m in per_file_metrics_list if m and 'error' not in m]
 #     if not valid_metrics_list:
 #         print(f"No valid per-file metrics to save for {filename}.")
@@ -28,7 +28,7 @@ from evaluation_engine import evaluate_model_on_dataset
 
 #     csv_path = os.path.join(results_dir, filename)
     
-#     # --- 1. Create summary information string ---
+#     # --- 1. 요약 정보 문자열 생성 ---
 #     summary_lines = [f"--- {summary_title} ---"]
 #     for key, value in aggregated_metrics.items():
 #         val_str = f"{value:.4f}" if isinstance(value, float) else str(value)
@@ -37,18 +37,18 @@ from evaluation_engine import evaluate_model_on_dataset
 #     summary_lines.append("\n--- Detailed Per-File Metrics ---")
 #     summary_header = "\n".join(summary_lines) + "\n"
 
-#     # --- 2. Save CSV file ---
+#     # --- 2. CSV 파일 저장 ---
 #     try:
 #         df = pd.DataFrame(valid_metrics_list)
 #         with open(csv_path, 'w', encoding='utf-8-sig', newline='') as f:
-#             f.write(summary_header) # Write summary header first
-#             df.to_csv(f, index=False) # Add detailed dataframe below it
+#             f.write(summary_header) # 요약 헤더 먼저 쓰기
+#             df.to_csv(f, index=False) # 그 아래에 상세 데이터프레임 추가
 #         print(f"✅ Metrics report saved to: {csv_path}")
 #     except Exception as e:
 #         print(f"❌ Error saving metrics to CSV: {e}")
 
 def load_model_for_evaluation(model_path: str, config: cfg, device: torch.device) -> nn.Module:
-    # ... (No changes here)
+    # ... (내용 변경 없음)
     if not os.path.exists(model_path): 
         print(f"❌ Error: Model file not found at {model_path}")
         return None
@@ -81,7 +81,7 @@ def load_model_for_evaluation(model_path: str, config: cfg, device: torch.device
         return None
 
 def run_single_evaluation(model, test_data_folder, csv_name_prefix, config, device):
-    """Function to perform evaluation and save results for a specified single dataset"""
+    """지정된 단일 데이터셋에 대해 평가를 수행하고 결과를 저장하는 함수"""
     print(f"\n\n--- Evaluating on dataset: {test_data_folder} ---")
     
     if not os.path.exists(test_data_folder):
@@ -101,12 +101,12 @@ def run_single_evaluation(model, test_data_folder, csv_name_prefix, config, devi
     if hasattr(target_model, 'prepare_for_inference'):
         target_model.prepare_for_inference(thr_bit=4)
 
-    # Run model evaluation
+    # 모델 평가 실행
     (aggregated_frame_metrics, per_file_frame_metrics, 
      _, _, _,_, 
      per_file_stream_metrics, aggregated_stream_metrics) = evaluate_model_on_dataset(model, test_data_list, config, device)
 
-    # Process and save Frame-Level Metrics
+    # Frame-Level Metrics 처리 및 저장
     if aggregated_frame_metrics:
         print("\n### Aggregated Frame-Level Metrics ###")
         for key, value in aggregated_frame_metrics.items():
@@ -119,7 +119,7 @@ def run_single_evaluation(model, test_data_folder, csv_name_prefix, config, devi
             summary_title=f"Frame-Level Metrics for {os.path.basename(test_data_folder)}"
         )
 
-    # Process and save Event-Stream Level Metrics
+    # Event-Stream Level Metrics 처리 및 저장
     if aggregated_stream_metrics:
         print("\n### Aggregated Event-Stream Level Metrics ###")
         for key, value in aggregated_stream_metrics.items():
@@ -133,7 +133,7 @@ def run_single_evaluation(model, test_data_folder, csv_name_prefix, config, devi
         )
 
 def run_multiple_evaluations(config: cfg, model_filename: str, model=None):
-    """Function to perform final evaluation on multiple specified test sets after training is complete."""
+    """학습 완료 후, 지정된 여러 테스트셋에 대해 최종 평가를 수행하는 함수."""
     print("\n\n" + "="*50 + "\n=== STARTING FINAL EVALUATION PHASE ===\n" + "="*50)
     
     if model is None:
@@ -142,27 +142,27 @@ def run_multiple_evaluations(config: cfg, model_filename: str, model=None):
             print(f"❌ Error: Model file not found at {model_path}. Aborting evaluation.")
             return
 
-        # Load model only once.
+        # 모델을 한 번만 로드합니다.
         model = load_model_for_evaluation(model_path, config, config.DEVICE)
         
     if model is None:
         print(f"❌ Error: Model is None. Aborting evaluation.")
         return
 
-    # --- ⚙️ Define evaluation tasks here ---
+    # --- ⚙️ 여기에 평가할 작업들을 정의합니다 ---
     evaluation_tasks = [
         {
             "test_data_folder": config.TEST_DATA_FOLDER,
-            "csv_name_prefix": config.CSV_NAME  # e.g., 'exp1_results'
+            "csv_name_prefix": config.CSV_NAME  # 예: 'exp1_results'
         },
-        # Continue adding second, third tasks if needed.
+        # 필요하다면 두 번째, 세 번째 작업을 계속 추가할 수 있습니다.
         # {
-        #     "test_data_folder": config.TEST_DATA_FOLDER_2, # Path for second testset
-        #     "csv_name_prefix": config.CSV_NAME_2 # Second results filename
+        #     "test_data_folder": config.TEST_DATA_FOLDER_2, # 두 번째 테스트셋 경로
+        #     "csv_name_prefix": config.CSV_NAME_2 # 두 번째 결과 파일명
         # },
     ]
 
-    # Iterate through defined tasks and run evaluation
+    # 정의된 작업들을 순회하며 평가 실행
     for task in evaluation_tasks:
         run_single_evaluation(
             model=model,
@@ -177,7 +177,7 @@ def run_multiple_evaluations(config: cfg, model_filename: str, model=None):
 
 
 def run_evaluation_after_training(config: cfg, model_filename: str):
-    """Function to perform final evaluation with the saved model after training is complete."""
+    """학습 완료 후, 저장된 모델로 최종 평가를 수행하는 함수."""
     print("\n\n" + "="*50 + "\n=== STARTING FINAL EVALUATION PHASE ===\n" + "="*50)
     
     model_path = os.path.join(config.SAVE_DIR, model_filename)
@@ -202,7 +202,7 @@ def run_evaluation_after_training(config: cfg, model_filename: str):
      _, _, _, 
      per_file_stream_metrics, aggregated_stream_metrics) = evaluate_model_on_dataset(model, test_data_list, config, config.DEVICE)
 
-    # --- Frame-Level Metrics processing ---
+    # --- Frame-Level Metrics 처리 ---
     if aggregated_frame_metrics:
         print("\n### Aggregated Frame-Level Metrics ###")
         for key, value in aggregated_frame_metrics.items():
@@ -215,7 +215,7 @@ def run_evaluation_after_training(config: cfg, model_filename: str):
             summary_title="Overall Aggregated Frame-Level Metrics"
         )
 
-    # --- Event-Stream Level Metrics processing ---
+    # --- Event-Stream Level Metrics 처리 ---
     if aggregated_stream_metrics:
         print("\n### Aggregated Event-Stream Level Metrics ###")
         for key, value in aggregated_stream_metrics.items():
@@ -231,7 +231,7 @@ def run_evaluation_after_training(config: cfg, model_filename: str):
     print("\n--- Final Evaluation Finished ---")
 
 def main_training_pipeline(args):
-    """Overall training and evaluation pipeline."""
+    """전체 학습 및 평가 파이프라인."""
     start_time = time.time()
     
     # --- DDP Initialization ---
@@ -647,7 +647,7 @@ def main_training_pipeline(args):
                     scheduler.step()  # Other schedulers step per epoch
 
         else:
-            # (Print statement when validation set is missing)
+            # (검증 세트가 없는 경우의 print문)
             train_da = train_metrics.get('da', 0.0)
             print(f"Epoch {epoch}/{cfg.NUM_EPOCHS} | Train DA: {train_da:.4f}")
 

@@ -4,10 +4,13 @@ import torch.nn as nn
 import numpy as np
 import os
 from tqdm import tqdm
-import pandas as pd # Used for overall aggregation (DataFrame)
+import pandas as pd # 전체 집계 시 DataFrame 사용
 import math
 
-# If compute_metrics is in utils.py, use the import statement below.
+# utils.py에서 compute_metrics 함수를 가져온다고 가정
+from utils import compute_metrics
+# 사용자께서 제공해주신 compute_metrics 함수 정의 (만약 utils.py에 없다면 여기에 직접 정의)
+# 외부 파일에 있다면 위 import 문 사용
 from sklearn.metrics import roc_auc_score # compute_metrics에서 사용
 
 
@@ -76,25 +79,24 @@ def compute_masked_stream_metrics(
     config_obj=None
 ) -> dict:
     """
-    Uses the denoised frames as a 'decision mask' to evaluate the original GT event stream.
+    Denoised된 프레임을 '결정 마스크'로 사용하여 원본 GT 이벤트 스트림을 평가합니다.
 
     Args:
-        S_stream_GT (np.ndarray): Original Ground Truth event stream [label, x, y, t, p].
-        denoised_frames (np.ndarray): Denoised frame sequence output by the model (T, H, W).
-        min_timestamp (float): Minimum timestamp of the stream.
-        fps (int): FPS used for frame conversion.
-        frame_width (int): Frame width.
-        frame_height (int): Frame height.
-        config_obj: Configuration object to fetch epsilon values.
+        S_stream_GT (np.ndarray): 원본 Ground Truth 이벤트 스트림 [label, x, y, t, p].
+        denoised_frames (np.ndarray): 모델이 출력한 denoised 프레임 시퀀스 (T, H, W).
+        fps (int): 프레임 변환에 사용된 FPS.
+        frame_width (int): 프레임 너비.
+        frame_height (int): 프레임 높이.
+        config_obj: Epsilon 값을 가져오기 위한 설정 객체.
 
     Returns:
-        dict: Dictionary containing TP, FP, FN, TN, and derived metrics.
+        dict: TP, FP, FN, TN 및 파생 메트릭을 포함하는 딕셔너리.
     """
     epsilon_e = getattr(config_obj, 'EPSILON_EVENT_METRICS', 1e-10)
 
-    # --- 1. Exception handling ---
+    # --- 1. 예외 처리 ---
     if S_stream_GT.ndim < 2 or S_stream_GT.shape[0] == 0:
-        # Cannot evaluate if GT events are missing
+        # GT 이벤트가 없으면 평가 불가
         return {'tp_event': 0, 'fp_event': 0, 'fn_event': 0, 'tn_event': 0, 'f1_event': 1.0}
 
     # # --- 2. 평가 기준 시간 설정 ---
@@ -106,40 +108,40 @@ def compute_masked_stream_metrics(
     # else:
     #     min_timestamp = gt_real_events[0, 3]
 
-    # --- 3. Calculate TP, FP, FN, TN ---
+    # --- 3. TP, FP, FN, TN 계산 ---
     tp_e, fp_e, fn_e, tn_e = 0, 0, 0, 0
     num_frames = denoised_frames.shape[0]
 
-    # Iterate through all events in the original GT stream
+    # 원본 GT 스트림의 모든 이벤트를 순회
     for event in S_stream_GT:
         label, x, y, ts, _ = event
         x, y = int(x), int(y)
 
-        # Convert event timestamp (ts) to frame index (t_idx)
+        # 이벤트의 시간(ts)을 프레임 인덱스(t_idx)로 변환
         t_idx = int((ts - min_timestamp) * fps)
 
-        # Check if coordinates are valid
+        # 유효한 좌표인지 확인
         if not (0 <= t_idx < num_frames and 0 <= y < frame_height and 0 <= x < frame_width):
             continue
 
-        # Check model's decision (frame mask value)
+        # 모델의 결정 확인 (프레임 마스크 값)
         model_kept_event = (denoised_frames[t_idx, y, x] == 1)
         event_is_signal = (label == 0)
 
         if model_kept_event and event_is_signal:
-            # Model 'kept', event is actual 'signal' -> TP
+            # 모델이 '유지'했고, 이벤트가 실제 '신호'인 경우 -> TP
             tp_e += 1
         elif model_kept_event and not event_is_signal:
-            # Model 'kept', event is actual 'noise' -> FP
+            # 모델이 '유지'했는데, 이벤트가 실제 '노이즈'인 경우 -> FP
             fp_e += 1
         elif not model_kept_event and event_is_signal:
-            # Model 'removed', event is actual 'signal' -> FN
+            # 모델이 '제거'했는데, 이벤트가 실제 '신호'인 경우 -> FN
             fn_e += 1
         elif not model_kept_event and not event_is_signal:
-            # Model 'removed', event is actual 'noise' -> TN
+            # 모델이 '제거'했고, 이벤트가 실제 '노이즈'인 경우 -> TN
             tn_e += 1
 
-    # --- 4. Final metric calculation ---
+    # --- 4. 최종 메트릭 계산 ---
     total_gt_signal = tp_e + fn_e
     total_gt_noise = fp_e + tn_e
 
@@ -228,7 +230,7 @@ def evaluate_model_on_dataset(
         if input_frames_np is None or input_frames_np.ndim != 3 or input_frames_np.shape[0] == 0:
             print(f"  - Skipping file {base_filename}: input_frames_np is None, has invalid dimensions {input_frames_np.shape if input_frames_np is not None else 'None'}, or no frames.")
             per_file_frame_metrics_list.append({'file_path': file_path, 'error': 'Invalid or empty input_frames_np'})
-            # Also add placeholder or error info for stream metrics list
+            # 스트림 메트릭 리스트에도 해당 파일에 대한 플레이스홀더 또는 에러 정보 추가
             per_file_event_stream_metrics_list.append({'file_path': file_path, 'error': 'Skipped due to invalid input_frames_np'})
             continue
             
@@ -314,7 +316,7 @@ def evaluate_model_on_dataset(
            original_labeled_event_stream.shape[1] == 5:
             print(f"  - Performing event-stream level comparison for {base_filename}...")
             S_denoised = []
-            min_ts_original_stream = original_labeled_event_stream[0, 3] # Assume already sorted
+            min_ts_original_stream = original_labeled_event_stream[0, 3] # 이미 정렬된 것으로 가정
             time_window_duration = 1.0 / config_obj.FPS
 
             for ev_idx in range(len(original_labeled_event_stream)):
@@ -338,9 +340,9 @@ def evaluate_model_on_dataset(
                 S_stream_GT=original_labeled_event_stream,
                 denoised_frames=full_file_preds_np_for_vis, # 모델이 예측한 프레임 마스크
                 min_timestamp=min_ts_from_data,
-                fps=config_obj.FPS,                         # Fetch FPS value from settings
-                frame_width=width,                          # Using previously defined variable
-                frame_height=height,                        # Using previously defined variable
+                fps=config_obj.FPS,                         # 설정에서 FPS 값 가져오기
+                frame_width=width,                          # 이전에 정의된 변수 사용
+                frame_height=height,                        # 이전에 정의된 변수 사용
                 config_obj=config_obj
             )
 
@@ -350,7 +352,7 @@ def evaluate_model_on_dataset(
             tn_e = stream_metrics.get('tn_event', 0)
             epsilon = 1e-10
 
-            # 1. Calculate DA, SR, NR from Duan et al. (LED)
+            # 1. Duan et al. (LED)의 DA, SR, NR 계산
             gp = tp_e + fn_e  # Ground-truth Positives
             gn = fp_e + tn_e  # Ground-truth Negatives
             sr = tp_e / (gp + epsilon)  # Signal Retain (Recall/TPR과 동일)
@@ -361,7 +363,7 @@ def evaluate_model_on_dataset(
             stream_metrics['noise_removal_nr'] = nr
             stream_metrics['denoising_accuracy_da'] = da
 
-            # 2. Calculate EDP, ESNR from Wu et al.
+            # 2. Wu et al.의 EDP, ESNR 계산
             total_denoised = tp_e + fp_e
             edp = tp_e / (total_denoised + epsilon) # Event Denoising Precision (Precision과 동일)
             
@@ -373,7 +375,7 @@ def evaluate_model_on_dataset(
 
             stream_metrics['event_denoising_precision_edp'] = edp
             stream_metrics['event_esnr_db'] = esnr
-            # <<< Calculation logic added >>>
+            # <<< 계산 로직 추가 완료 >>>
 
             # <<< [핵심 수정] 개별 파일의 이벤트 스트림 AUC 계산 및 저장 >>>
             file_event_labels = []
@@ -437,7 +439,7 @@ def evaluate_model_on_dataset(
             total_fn = metrics_df['fn'].sum(skipna=True)
             final_aggregated_frame_metrics['total_tp'] = total_tp
             final_aggregated_frame_metrics['total_fp'] = total_fp
-            final_aggregated_frame_metrics['total_tn'] = total_tn
+            final_aggregated_frame_metrics['total_tn'] = total_tn # 이전 코드에 있던 오타 수정: final_aggregated_frame_etrics
             final_aggregated_frame_metrics['total_fn'] = total_fn
             epsilon = 1e-10
             final_aggregated_frame_metrics['overall_accuracy'] = (total_tp + total_tn) / (total_tp + total_fp + total_tn + total_fn + epsilon) if (total_tp + total_fp + total_tn + total_fn) > 0 else 0.0
@@ -540,7 +542,7 @@ def evaluate_model_on_dataset(
             final_aggregated_event_stream_metrics['overall_noise_rejection_rate_event'] = agg_noise_rejection_e
             final_aggregated_event_stream_metrics['overall_snr_tp_fp_event'] = agg_snr_event
 
-            # <<< [New] Aggregate DA, ESNR for the entire dataset >>>
+            # <<< [신규] 전체 데이터셋에 대한 DA, ESNR 집계 >>>
             total_gp_e = total_tp_e + total_fn_e
             total_gn_e = total_fp_e + total_tn_e
             overall_sr = total_tp_e / (total_gp_e + epsilon)
@@ -559,7 +561,7 @@ def evaluate_model_on_dataset(
             final_aggregated_event_stream_metrics['overall_denoising_accuracy_da'] = overall_da
             final_aggregated_event_stream_metrics['overall_event_denoising_precision_edp'] = overall_edp
             final_aggregated_event_stream_metrics['overall_event_snr_esnr_db'] = overall_esnr
-            # <<< Aggregation logic added >>>
+            # <<< 집계 로직 추가 완료 >>>
 
             try:
                 if all_event_stream_labels and all_event_stream_probs:

@@ -3,16 +3,16 @@ import torch
 import torch.nn as nn
 from snntorch import surrogate
 
-# Import custom layers
+# 위에서 완성된 custom_layers.py를 임포트
 from custom_layers import BinaryConv2d, BinarizeAct, QuantLeaky
 
 from config import cfg
 
 class Hybrid_SNN_Pure_BNN(nn.Module):
     """
-    Hybrid SNN-BNN model without BatchNorm.
-    - First Block: SNN (BinaryConv2d -> QuantLeaky)
-    - Subsequent Blocks: Pure BNN (BinaryConv2d -> BinarizeAct)
+    BatchNorm이 없는 SNN-BNN 하이브리드 모델.
+    - 첫 번째 블록: SNN (BinaryConv2d -> QuantLeaky)
+    - 이후 블록: Pure BNN (BinaryConv2d -> BinarizeAct)
     """
     def __init__(self,
                  input_channels: int,
@@ -71,20 +71,20 @@ class Hybrid_SNN_Pure_BNN(nn.Module):
     def forward(self, x: torch.Tensor, mem: torch.Tensor = None, regulate=False):
         """
         Args:
-            x (torch.Tensor): Input tensor [Batch, Time, Channels, Height, Width].
-            mem (torch.Tensor, optional): Initial SNN membrane potential. Defaults to None.
-            regulate (bool): Whether to use weight regulation.
+            x (torch.Tensor): 입력 텐서 [Batch, Time, Channels, Height, Width].
+            mem (torch.Tensor, optional): 초기 SNN 막전위 상태. Defaults to None.
+            regulate (bool): 가중치 정규화 사용 여부.
 
         Returns:
-            torch.Tensor: Output logits [Batch, Time, Output_Classes, Height, Width].
-            torch.Tensor: Updated SNN membrane potential.
+            torch.Tensor: 출력 로짓 [Batch, Time, Output_Classes, Height, Width].
+            torch.Tensor: 업데이트된 SNN 막전위 상태.
         """
-        # If mem is None, initialize internally (Stateless or first step)
-        # QuantLeaky initializes to 0 if it receives None
+        # mem이 None이면 내부에서 초기화 (Stateless 또는 첫 스텝)
+        # QuantLeaky가 None을 받으면 0으로 초기화함
         
         outputs_over_time = []
 
-        for step in range(x.size(1)): # Time axis loop
+        for step in range(x.size(1)): # 시간 축 루프
             x_step = x[:, step, ...]
 
             # SNN Layer

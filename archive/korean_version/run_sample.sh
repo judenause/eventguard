@@ -1,15 +1,15 @@
-# !/bin/bash
+#!/bin/bash
 # ==============================================================================
-# V9 FPS 30 - Beta 0.4 Training
-# GPUs: 0, 1 (2 GPUs)
+# V9 FPS 30 - Beta 0.4 학습
+# GPU: 0,1 (2개)
 # ==============================================================================
 
 FPS=30
 BETA=0.4
-PROJECT_ROOT="."
-DATA_ROOT="./sample_data" # Default to sample data, update as needed
+PROJECT_ROOT="/local_data/EventGuard/EventSNN/code/v8_bconvsnn"
+DATA_ROOT="/local_data/EventGuard/EventSNN/data/esd/total"
 
-SAVE_DIR="./results/v9_qat_fps30_beta04"
+SAVE_DIR="${PROJECT_ROOT}/results/v9_qat_fps30_beta04"
 mkdir -p "${SAVE_DIR}"
 
 LOG_FILE="${SAVE_DIR}/training.log"

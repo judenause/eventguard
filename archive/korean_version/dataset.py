@@ -2,7 +2,7 @@
 import torch
 from torch.utils.data import Dataset
 import numpy as np
-# from config import cfg # config_obj is passed as an argument instead of using cfg directly
+# from config import cfg # cfg 객체를 직접 사용하지 않고, 생성자 인자로 config_obj를 받음
 
 class EventFrameLazyDataset(Dataset):
     """
@@ -12,8 +12,8 @@ class EventFrameLazyDataset(Dataset):
     for one original .npy file, as returned by data_processing.process_folder_to_frame_lists.
     """
     def __init__(self,
-                 data_list: list[dict], # Return value from data_processing.process_folder_to_frame_lists
-                 config_obj): # Instance of cfg from config.py
+                 data_list: list[dict], # data_processing.process_folder_to_frame_lists의 반환값
+                 config_obj): # config.py의 cfg 인스턴스
         """
         Args:
             data_list (list[dict]): A list of dictionaries. Each dictionary corresponds to one
@@ -41,14 +41,14 @@ class EventFrameLazyDataset(Dataset):
         print(f"Initializing EventFrameLazyDataset with {len(self.data_list)} processed files...")
         # Pre-calculate the index map and total number of possible windows across all files
         for file_idx, file_entry_dict in enumerate(self.data_list):
-            # Use 'num_frames' metadata (prevents full loading into RAM)
+            # 'num_frames' 메타데이터 사용 (RAM 로딩 방지)
             num_frames_in_file = file_entry_dict['num_frames']
 
-            # Calculate available windows for this file
+            # 이 파일에서 생성 가능한 윈도우 수 계산
             if num_frames_in_file >= self.window_size:
                 num_windows_in_this_file = (num_frames_in_file - self.window_size) // self.stride + 1
                 for i in range(num_windows_in_this_file):
-                    # Save start frame index for each window
+                    # 각 윈도우의 시작 프레임 인덱스를 저장
                     window_start_frame_idx = i * self.stride
                     self.index_map.append((file_idx, window_start_frame_idx))
                 self.total_windows += num_windows_in_this_file
@@ -86,8 +86,10 @@ class EventFrameLazyDataset(Dataset):
         if not (0 <= global_window_idx < self.total_windows):
             raise IndexError(f"Index {global_window_idx} is out of bounds for EventFrameLazyDataset of size {self.total_windows}.")
 
-        # Find which file and which window index this global_window_idx belongs to
-        # Slicing current window using NumPy slicing
+        # 이 global_window_idx가 어떤 파일의 몇 번째 윈도우에 해당하는지 index_map에서 찾기
+        # file_idx_in_data_list, window_start_frame_in_file = self.index_map[global_window_idx] # Removed duplicate
+
+        # NumPy 슬라이싱을 사용하여 현재 윈도우 추출
         if self.index_map is None:
              raise ValueError("Index map not initialized.")
 
@@ -130,10 +132,10 @@ class EventFrameLazyDataset(Dataset):
                 noise_gt_window_np = np.flip(noise_gt_window_np, axis=1).copy()
                 eval_mask_window_np = np.flip(eval_mask_window_np, axis=1).copy()
 
-        # Add channel dimension (C=1): (T_win, H, W) -> (T_win, 1, H, W)
+        # 입력 프레임에 채널 차원(C=1) 추가: (T_win, H, W) -> (T_win, 1, H, W)
         inputs_window_np_ch = np.expand_dims(input_window_np, axis=1)
 
-        # Convert NumPy arrays to PyTorch tensors
+        # Numpy 배열을 PyTorch Tensor로 변환
         inputs_tensor = torch.FloatTensor(inputs_window_np_ch)
         real_gt_tensor = torch.FloatTensor(real_gt_window_np)
         noise_gt_tensor = torch.FloatTensor(noise_gt_window_np)
@@ -146,9 +148,8 @@ class EventFrameLazyDataset(Dataset):
         return inputs_tensor, real_gt_tensor, noise_gt_tensor, eval_mask_tensor, is_new_file_tensor
 
 
-# --- (Reference) EventFrameWindowDataset (Original) ---
-# This method generates all windows in advance and keeps them in memory. 
-# It may not be suitable for large datasets.
+# --- (참고용) 원본 파일의 EventFrameWindowDataset ---
+# 이 방식은 모든 윈도우를 미리 생성하여 메모리에 보관합니다. 대용량 데이터셋에는 부적합할 수 있습니다.
 class EventFrameWindowDataset(Dataset):
     """
     PyTorch Dataset for pre-generated event frame window samples.
@@ -180,7 +181,7 @@ class EventFrameWindowDataset(Dataset):
             self.window_len = self.input_windows.shape[1]
             self.height = self.input_windows.shape[2]
             self.width = self.input_windows.shape[3]
-        else: # Unexpected dimensions
+        else: # 예상치 못한 차원
              raise ValueError(f"Input windows should be 4D (N_win, T_win, H, W), got {self.input_windows.ndim}D")
 
 
@@ -196,7 +197,7 @@ class EventFrameWindowDataset(Dataset):
         """
         Generates one sample of pre-generated windowed data.
         """
-        # Add channel dimension (C=1): (T_win, H, W) -> (T_win, 1, H, W)
+        # 입력 프레임에 채널 차원(C=1) 추가: (T_win, H, W) -> (T_win, 1, H, W)
         inputs_np_ch = np.expand_dims(self.input_windows[idx], axis=1)
 
         # 해당 인덱스의 GT 및 마스크 윈도우 가져오기

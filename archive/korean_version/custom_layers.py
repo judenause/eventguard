@@ -2,7 +2,7 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-import snntorch as snn # Required for QuantLeaky
+import snntorch as snn # QuantLeaky를 위해 필요
 
 
 # ===================================================================
@@ -50,11 +50,11 @@ class BinaryConv2d(nn.Conv2d):
 
     def forward(self, input, regulate = False):
         if (regulate):
-            # Binarize regulated weights
+            # 정규화된 가중치를 이진화
             binarized_weights = (self.weight - self.weight.mean()) / self.weight.std()
             binarized_weights = BinarizeWeight.apply(binarized_weights)
         else:
-            # Binarize original weights directly
+            # 원본 가중치를 바로 이진화
             binarized_weights = BinarizeWeight.apply(self.weight)
 
         # DAC2026 style: Scale only during TRAINING
@@ -66,7 +66,7 @@ class BinaryConv2d(nn.Conv2d):
         return F.conv2d(input, binarized_weights, stride=self.stride, padding=self.padding, dilation=self.dilation, bias=None)
 
     def reset_parameters(self):
-        # Initialize weights
+        # 가중치 초기화
         nn.init.xavier_normal_(self.weight)
 
 # ===================================================================
@@ -121,10 +121,10 @@ class PowerOfTwo(torch.autograd.Function):
     """
     @staticmethod
     def forward(ctx, input):
-        # Quantize to 2^-n form (assuming 0 < input <= 1)
+        # 2^-n 형태로 양자화 (0 < input <= 1 가정)
         ctx.save_for_backward(input)
         
-        # Handle non-positive values (Beta must be positive)
+        # 0 이하인 경우 처리 (Beta는 양수여야 함)
         input_clamped = input.clamp(min=1e-6, max=1.0)
         
         log_val = torch.log2(input_clamped)

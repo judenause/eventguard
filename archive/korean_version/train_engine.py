@@ -1,15 +1,15 @@
 # train_engine.py
 import torch
-import torch.nn as nn # For checking nn.DataParallel
+import torch.nn as nn # nn.DataParallel 확인용
 from torch.utils.data import DataLoader
-from tqdm import tqdm # Progress bar
-import numpy as np # For checking finite values in metric averaging, etc.
-import math # For SNR calculations, etc.
+from tqdm import tqdm # 진행률 표시
+import numpy as np # 메트릭 평균 계산 시 유한값 확인 등
+import math # SNR 계산 등
 from torch.utils.tensorboard import SummaryWriter
 
-# Import necessary functions and objects from other modules
-# from config import cfg # cfg object is passed directly as a function argument
-from utils import compute_metrics, visualize_batch_results # focal_loss is passed directly from main_train
+# 다른 모듈에서 필요한 함수 및 객체 임포트
+# from config import cfg # cfg 객체는 함수 인자로 직접 받음
+from utils import compute_metrics, visualize_batch_results # focal_loss는 main_train에서 직접 전달
 
 def train_one_epoch(model: nn.Module,
                     dataloader: DataLoader,
@@ -24,37 +24,34 @@ def train_one_epoch(model: nn.Module,
                     scaler: torch.cuda.amp.GradScaler = None,
                     force_stateless: bool = False) -> dict:
     """
-    Performs one epoch of training for the model.
+    모델의 한 에폭 학습을 수행합니다.
 
     Args:
-        model: PyTorch model to train.
-        dataloader: Training data loader.
-        optimizer: Optimizer.
-        lr_scheduler: Learning rate scheduler.
-        loss_function: Loss function.
-        device: Device to use for training (CPU or CUDA).
-        config_obj: Configuration object.
-        epoch_num: Current epoch number.
-        visualization_save_dir: Path to save batch visualization results.
-        writer: TensorBoard SummaryWriter.
-        scaler: GradScaler for AMP.
-        force_stateless: Whether to force stateless mode (ignore membrane potential).
+        model: 학습할 PyTorch 모델.
+        dataloader: 학습 데이터 로더.
+        optimizer: 옵티마이저.
+        lr_scheduler: 학습률 스케줄러 (OneCycleLR 등 배치마다 step 하는 경우).
+        loss_function: 손실 함수.
+        device: 학습에 사용할 장치 (CPU 또는 CUDA).
+        config_obj: 설정 객체 (FOCAL_ALPHA, FOCAL_GAMMA, SNR 계산 플래그 등 사용).
+        epoch_num: 현재 에폭 번호 (로그 및 시각화 파일명에 사용).
+        visualization_save_dir: 배치 시각화 결과 저장 경로.
 
     Returns:
-        dict: Dictionary containing average training loss and performance metrics for the epoch.
+        dict: 해당 에폭의 평균 학습 손실 및 성능 지표를 담은 딕셔셔리.
     """
-    model.train()  # Set model to training mode
+    model.train()  # 모델을 학습 모드로 설정
     epoch_total_loss = 0.0
     
-    # Variables to accumulate TP, FP, TN, FN across the epoch (for more accurate epoch average metrics)
+    # 에폭 전체의 TP, FP, TN, FN을 누적하기 위한 변수 (더 정확한 에폭 평균 지표 계산용)
     epoch_total_tp = 0
     epoch_total_fp = 0
     epoch_total_tn = 0
     epoch_total_fn = 0
     
-    # For accumulating other metrics (AUC, etc.)
-    accumulated_metrics_sum = {} # e.g., {'auc': 0.0, 'snr_tp_fp': 0.0}
-    num_valid_metric_batches = {} # Number of valid batches per metric (excluding NaN/inf)
+    # 평균을 낼 다른 지표들 (AUC 등) 누적용
+    accumulated_metrics_sum = {} # 예: {'auc': 0.0, 'snr_tp_fp': 0.0}
+    num_valid_metric_batches = {} # 각 지표별 유효 배치 수 (NaN/inf 제외)
 
     # tqdm을 사용하여 배치 진행률 표시
     progress_bar = tqdm(dataloader, desc=f"Epoch {epoch_num} [TRAIN]", leave=False, unit="batch",dynamic_ncols=True)
@@ -77,7 +74,7 @@ def train_one_epoch(model: nn.Module,
         
         inputs = inputs.to(device, non_blocking=True)
         real_gt = real_gt.to(device, non_blocking=True)
-        # noise_gt_for_metrics = noise_gt.to(device, non_blocking=True) # Use if needed for metric calculation
+        # noise_gt_for_metrics = noise_gt.to(device, non_blocking=True) # 메트릭 계산 시 필요하면 사용
         eval_mask = eval_mask.to(device, non_blocking=True)
 
         # Note: optimizer.zero_grad() is now called after optimizer.step() for gradient accumulation support
@@ -121,7 +118,7 @@ def train_one_epoch(model: nn.Module,
             if current_mem is not None:
                 current_mem = current_mem.detach()
 
-            # Calculate loss (e.g., utils.focal_loss)
+            # 손실 계산 (utils.focal_loss 등 사용)
             # Focal loss requires alpha/gamma, Tversky/FocalTversky only need 3 args
             if config_obj.LOSS_TYPE == 'Focal':
                 loss = loss_function(logits, real_gt, eval_mask, config_obj.FOCAL_ALPHA, config_obj.FOCAL_GAMMA)
@@ -167,11 +164,11 @@ def train_one_epoch(model: nn.Module,
 
         epoch_total_loss += loss.item()
 
-        # Calculate performance metrics (can be simplified or skipped during training for speed)
-        # Calculate every 10 batches (speed optimization)
+        # 성능 지표 계산 (메모리 및 시간 소모 고려하여 학습 중에는 간략화하거나 건너뛸 수 있음)
+        # 10 배치마다 한 번씩만 계산 (속도 최적화)
         if batch_idx % 10 == 0:
-            with torch.no_grad(): # Gradient tracking not needed for metrics
-                # compute_metrics also takes noise_gt as an argument
+            with torch.no_grad(): # 지표 계산은 그래디언트 추적 불필요
+                # compute_metrics는 noise_gt도 인자로 받음 (원본 코드 기준)
                 noise_gt_for_metrics = batch_data_tuple[2].to(device, non_blocking=True)
                 batch_metrics_dict = compute_metrics(logits.detach(), real_gt, noise_gt_for_metrics, eval_mask, config_obj)
             
@@ -185,8 +182,8 @@ def train_one_epoch(model: nn.Module,
                     accumulated_metrics_sum[key] = accumulated_metrics_sum.get(key, 0.0) + value
                     num_valid_metric_batches[key] = num_valid_metric_batches.get(key, 0) + 1
             
-            # Update current batch loss and key metrics in the progress bar
-            current_lr = optimizer.param_groups[0]['lr'] # Current LR changed by scheduler
+            # 진행률 표시줄에 현재 배치 손실 및 주요 지표 업데이트
+            current_lr = optimizer.param_groups[0]['lr'] # 스케줄러에 의해 변경된 현재 LR
             progress_bar.set_postfix({
                 'Loss': f"{loss.item():.4f}",
                 'F1': f"{batch_metrics_dict.get('f1', 0.0):.3f}",
@@ -196,7 +193,7 @@ def train_one_epoch(model: nn.Module,
                 'DA' : f"{batch_metrics_dict.get('denoising_accuracy_da',float('nan')):.3f}"
             })
             
-            # TensorBoard Logging (Batch Level) - Record every 10 batches
+            # TensorBoard Logging (Batch Level) - 10배치마다 기록
             if writer is not None and config_obj.USE_TENSORBOARD:
                 global_step = (epoch_num - 1) * len(dataloader) + batch_idx
                 writer.add_scalar('Train/Loss_Batch', loss.item(), global_step)
@@ -222,24 +219,24 @@ def train_one_epoch(model: nn.Module,
                     writer.add_scalar('Loss/Alpha', alpha_val, global_step)
                     writer.add_scalar('Loss/Gamma', gamma_val, global_step)
         else:
-             # For batches where metrics are not calculated, only update loss
+             # 메트릭 계산 안 하는 배치는 Loss만 업데이트
              current_lr = optimizer.param_groups[0]['lr']
              progress_bar.set_postfix({
                 'Loss': f"{loss.item():.4f}",
                 'LR': f"{current_lr:.2E}"
             })
 
-        # (Optional) Visualize at specific batch intervals (e.g., first or middle batch)
+        # (선택적) 특정 배치 간격으로 시각화 (예: 에폭의 첫 배치 또는 중간 배치)
         # if batch_idx == 0 or (batch_idx + 1) == len(dataloader) // 2 :
         # if batch_idx == 0 and epoch_num % 5 == 0 : # 첫 배치, 5 에폭마다
         #      if visualization_save_dir: # 저장 경로가 지정된 경우에만
         #         visualize_batch_results(batch_data_tuple, batch_metrics_dict, epoch_num, batch_idx, 'train', visualization_save_dir)
 
-    # --- After epoch ends ---
+    # --- 에폭 종료 후 ---
     avg_epoch_loss = epoch_total_loss / len(dataloader)
     
-    # Calculate epoch average metrics using accumulated TP, FP, TN, FN
-    # (can be more accurate than averaging individual batch metrics)
+    # 누적된 TP,FP,TN,FN으로 에폭 전체에 대한 지표 계산
+    # (개별 배치 지표 평균보다 더 정확할 수 있음)
     epsilon = 1e-10
     epoch_accuracy = (epoch_total_tp + epoch_total_tn) / (epoch_total_tp + epoch_total_fp + epoch_total_tn + epoch_total_fn + epsilon)
     epoch_precision = epoch_total_tp / (epoch_total_tp + epoch_total_fp + epsilon)
@@ -252,19 +249,19 @@ def train_one_epoch(model: nn.Module,
         'precision': epoch_precision,
         'recall': epoch_recall,
         'f1': epoch_f1,
-        'tp': epoch_total_tp, # Also return totals
+        'tp': epoch_total_tp, # 총계도 반환
         'fp': epoch_total_fp,
         'tn': epoch_total_tn,
         'fn': epoch_total_fn
     }
     
-    # Add other averaged metrics
+    # 누적 후 평균낸 다른 지표들 추가
     for key, total_sum in accumulated_metrics_sum.items():
-        if key not in final_epoch_metrics: # tp, fp, etc. already handled above
+        if key not in final_epoch_metrics: # tp,fp 등은 이미 위에서 처리
             valid_batches = num_valid_metric_batches.get(key, 0)
-            final_epoch_metrics[key] = total_sum / valid_batches if valid_batches > 0 else 0.0 # or float('nan')
+            final_epoch_metrics[key] = total_sum / valid_batches if valid_batches > 0 else 0.0 # 또는 float('nan')
 
-    # Recalculate SNR (TP/FP) with accumulated TP, FP
+    # SNR(TP/FP)는 누적된 TP, FP로 다시 계산
     if config_obj.CALC_SNR_TP_FP:
         if epoch_total_fp + epsilon == 0:
             epoch_snr_tp_fp = float('inf') if epoch_total_tp > 0 else 0.0
@@ -285,21 +282,21 @@ def validate_one_epoch(model: nn.Module,
                        epoch_num: int, # 로그 및 시각화 파일명용 (선택적)
                        visualization_save_dir: str) -> dict:
     """
-    Performs one epoch of validation for the model.
+    모델의 한 에폭 검증을 수행합니다.
 
     Args:
-        model: PyTorch model to evaluate.
-        dataloader: Validation data loader.
-        loss_function: Loss function.
-        device: Device to use for evaluation.
-        config_obj: Configuration object.
-        epoch_num: Current epoch number.
-        visualization_save_dir: Path to save batch visualization results.
+        model: 평가할 PyTorch 모델.
+        dataloader: 검증 데이터 로더.
+        loss_function: 손실 함수.
+        device: 평가에 사용할 장치.
+        config_obj: 설정 객체.
+        epoch_num: 현재 에폭 번호.
+        visualization_save_dir: 배치 시각화 결과 저장 경로.
 
     Returns:
-        dict: Average validation loss and performance metrics for the epoch.
+        dict: 해당 에폭의 평균 검증 손실 및 성능 지표.
     """
-    model.eval()  # Set model to evaluation mode
+    model.eval()  # 모델을 평가 모드로 설정
     
     # Pre-compute quantized threshold for inference (DAC2026-style)
     # Handle DDP/DataParallel wrapper - need to access model.module
@@ -320,7 +317,7 @@ def validate_one_epoch(model: nn.Module,
     # Stateful Validation State (mirroring train_one_epoch)
     current_mem = None
 
-    with torch.no_grad(): # Gradients not needed during validation
+    with torch.no_grad(): # 검증 중에는 그래디언트 계산 불필요
         for batch_idx, batch_data_tuple in enumerate(progress_bar):
             # Extract is_new_file for stateful membrane reset
             if len(batch_data_tuple) == 5:
@@ -381,7 +378,7 @@ def validate_one_epoch(model: nn.Module,
                 'DA' : f"{batch_metrics_dict.get('denoising_accuracy_da',float('nan')):.3f}"
             })
             
-            # (Optional) Visualize first batch of validation set
+            # (선택적) 검증 세트의 첫 배치 시각화
             # if batch_idx == 0 and epoch_num % 5 == 0 : # 첫 배치, 5 에폭마다
             #     if visualization_save_dir:
             #         visualize_batch_results(batch_data_tuple, batch_metrics_dict, epoch_num, batch_idx, 'val', visualization_save_dir)

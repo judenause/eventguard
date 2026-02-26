@@ -15,7 +15,7 @@ from tqdm import tqdm
 
 matplotlib.use('Agg')
 
-# --- Loss Functions ---
+# --- 손실 함수 ---
 def focal_loss(logits: torch.Tensor,
                targets: torch.Tensor,
                evaluation_mask: torch.Tensor,
@@ -92,8 +92,8 @@ class TverskyLoss(nn.Module):
             smooth (float): A small value to prevent division by zero.
         """
         super().__init__()
-        # To improve SNR, higher penalty is set for FP, so beta > alpha.
-        # e.g., alpha=0.3, beta=0.7
+        # SNR 향상을 위해서는 FP에 대한 페널티를 높여야 하므로, beta > alpha 로 설정합니다.
+        # 예: alpha=0.3, beta=0.7
         self.alpha = alpha
         self.beta = beta
         self.smooth = smooth
@@ -242,12 +242,12 @@ class LearnableFocalLoss(nn.Module):
         return F.softplus(self.raw_gamma).item()
 
 
-# --- Performance Metric Calculation Functions ---
+# --- 성능 지표 계산 함수 ---
 def compute_metrics(logits: torch.Tensor,
                     real_event_gt: torch.Tensor,
                     noise_event_gt: torch.Tensor, # 이 인자는 현재 SNR 계산 외에는 직접 사용되지 않음
                     evaluation_mask: torch.Tensor,
-                    config_obj, # Takes cfg object directly
+                    config_obj, # cfg 객체를 직접 전달받음
                     ) -> dict:
     """
     Compute various performance metrics for event denoising.
@@ -268,7 +268,7 @@ def compute_metrics(logits: torch.Tensor,
 
     device = logits.device
     real_event_gt = real_event_gt.to(device).float()
-    noise_event_gt = noise_event_gt.to(device).float() # Unified type even if not used
+    noise_event_gt = noise_event_gt.to(device).float() # 사용되지 않더라도 타입 통일
     evaluation_mask = evaluation_mask.to(device).float()
 
     # Probabilities and predictions for the positive class (real event)
@@ -288,19 +288,19 @@ def compute_metrics(logits: torch.Tensor,
         metrics_dict = {
             'tp': 0, 'fp': 0, 'tn': 0, 'fn': 0,
             'accuracy': 0.0, 'precision': 0.0, 'recall': 0.0, 'f1': 0.0, 'auc': 0.0,
-            'pred_classes_last_step': preds[:, -1, :, :].cpu().numpy(), # Prediction of the last step (for visualization)
-            'pred_probs_last_step': probs[:, -1, :, :].cpu().numpy()    # Probability of the last step (for visualization)
+            'pred_classes_last_step': preds[:, -1, :, :].cpu().numpy(), # 마지막 스텝 예측 (시각화용)
+            'pred_probs_last_step': probs[:, -1, :, :].cpu().numpy()    # 마지막 스텝 확률 (시각화용)
         }
         if config_obj.CALC_SNR_TP_FP:
             metrics_dict['snr_tp_fp'] = float('-inf')
-        # Metrics for CALC_SNR_EVAL_PCPNET are excluded for now as the logic is not clear
+        # CALC_SNR_EVAL_PCPNET 관련 로직은 원본 코드에 해당 계산 부분이 명확하지 않아 일단 제외
         return metrics_dict
 
     targets_flat_masked = real_event_gt.reshape(-1)[active_indices]
     preds_flat_masked = final_preds.reshape(-1)[active_indices]
     # preds_flat_masked = preds.reshape(-1)[active_indices]
     probs_flat_masked = probs.reshape(-1)[active_indices]
-    noise_gt_flat_masked = noise_event_gt.reshape(-1)[active_indices] # Use if needed
+    noise_gt_flat_masked = noise_event_gt.reshape(-1)[active_indices] # 필요시 사용
 
     # tp = ((preds_flat_masked == 1) & (targets_flat_masked == 1)).sum().item() #real-real
     # #fp = ((preds_flat_masked == 1) & (targets_flat_masked == 0)).sum().item()
@@ -309,45 +309,45 @@ def compute_metrics(logits: torch.Tensor,
     # tn = ((preds_flat_masked == 0) & (noise_gt_flat_masked == 1)).sum().item() #noise-noise
     # fn = ((preds_flat_masked == 0) & (targets_flat_masked == 1)).sum().item() #noise-real
 
-        # --- ★★★ New TP, FP, FN, TN calculation with priority ★★★ ---
+        # --- ★★★ 우선순위를 적용한 새로운 TP, FP, FN, TN 계산 ★★★ ---
 
-    # 2. First, confirm TP (True Positive).
-    # Position where the model predicted (1) and GT is also an actual event (1)
+    # 2. TP (True Positive)를 가장 먼저 확정합니다.
+    # 모델이 예측(1)했고, GT도 실제 이벤트(1)인 위치
     is_tp = (preds_flat_masked == 1) & (targets_flat_masked == 1)
     tp = is_tp.sum().item()
 
-    # 3. Confirm FN (False Negative).
-    # Position where the model did not predict (0) and GT is an actual event (1)
+    # 3. FN (False Negative)을 확정합니다.
+    # 모델이 예측 안했고(0), GT는 실제 이벤트(1)인 위치
     is_fn = (preds_flat_masked == 0) & (targets_flat_masked == 1)
     fn = is_fn.sum().item()
 
-    # 4. Calculate FP (False Positive).
-    # Position where the model predicted (1), but was not TP, and GT is noise (1)
+    # 4. FP (False Positive)를 계산합니다.
+    # 모델이 예측(1)했는데, TP가 아니었던 위치 중에서 GT가 노이즈(1)인 경우
     is_fp = (preds_flat_masked == 1) & (~is_tp) & (noise_gt_flat_masked == 1)
     fp = is_fp.sum().item()
 
-    # 5. Calculate TN (True Negative).
-    # Position where the model did not predict (0), but was not FN, and GT is noise (1)
+    # 5. TN (True Negative)을 계산합니다.
+    # 모델이 예측 안했고(0), FN이 아니었던 위치 중에서 GT가 노이즈(1)인 경우
     is_tn = (preds_flat_masked == 0) & (~is_fn) & (noise_gt_flat_masked == 1)
     tn = is_tn.sum().item()
     
-    # --- ★★★ Modification complete ★★★ ---
+    # --- ★★★ 수정 완료 ★★★ ---
 
     total_active_pixels = tp + fp + tn + fn
     accuracy = (tp + tn) / total_active_pixels if total_active_pixels > 0 else 0.0
-    precision = tp / (tp + fp + epsilon) # Avoid division by zero
-    recall = tp / (tp + fn + epsilon)    # Avoid division by zero (TPR)
-    f1 = 2 * (precision * recall) / (precision + recall + epsilon) # Avoid division by zero
+    precision = tp / (tp + fp + epsilon) # 분모 0 방지
+    recall = tp / (tp + fn + epsilon)    # 분모 0 방지 (TPR)
+    f1 = 2 * (precision * recall) / (precision + recall + epsilon) # 분모 0 방지
 
     auc = 0.0
-    if len(torch.unique(targets_flat_masked)) > 1: # AUC can only be calculated when both classes exist
+    if len(torch.unique(targets_flat_masked)) > 1: # AUC는 두 클래스 모두 존재해야 계산 가능
         try:
             auc = roc_auc_score(targets_flat_masked.cpu().numpy(), probs_flat_masked.cpu().numpy())
         except ValueError as e:
             # print(f"Warning: AUC calculation failed. {e}")
-            auc = 0.0 # or float('nan')
-    # <<< [Core Addition] Calculate DA (Denoising Accuracy) >>>
-    # SR (Signal Retain) is the same as recall
+            auc = 0.0 # 또는 float('nan')
+    # <<< [핵심 추가] DA (Denoising Accuracy) 계산 >>>
+    # SR (Signal Retain)은 recall과 동일
     # NR (Noise Removal)은 tn / (tn + fp)
     signal_retain_sr = recall
     noise_removal_nr = tn / (tn + fp + epsilon)
@@ -356,7 +356,7 @@ def compute_metrics(logits: torch.Tensor,
     metrics_dict = {
         'tp': tp, 'fp': fp, 'tn': tn, 'fn': fn,
         'accuracy': accuracy, 'precision': precision, 'recall': recall, 'f1': f1, 'auc': auc,
-        # <<< [Added] Include DA and its components in the dictionary >>>
+        # <<< [추가] DA와 그 구성요소를 딕셔너리에 포함 >>>
         'signal_retain_sr': signal_retain_sr,
         'noise_removal_nr': noise_removal_nr,
         'denoising_accuracy_da': denoising_accuracy_da,
@@ -366,25 +366,25 @@ def compute_metrics(logits: torch.Tensor,
 
     hallucinated_pixels = ((preds == 1) & (evaluation_mask == 0)).sum().item()
 
-    # Add new metrics to existing metrics_dict
+    # 기존 metrics_dict에 새로운 지표 추가
     metrics_dict['hallucinated_pixels'] = hallucinated_pixels
 
     if config_obj.CALC_SNR_TP_FP:
-        if fp + epsilon == 0: # When FP is 0
-            snr_tp_fp = float('inf') if tp > 0 else 0.0 # Infinity if TP exists, 0 otherwise
-        elif tp + epsilon == 0: # When TP is 0 (and FP is not 0)
+        if fp + epsilon == 0: # FP가 0일 때
+            snr_tp_fp = float('inf') if tp > 0 else 0.0 # TP가 있으면 무한대, 없으면 0
+        elif tp + epsilon == 0: # TP가 0일 때 (FP는 0이 아님)
             snr_tp_fp = float('-inf')
         else:
             snr_tp_fp = 10 * math.log10((tp + epsilon) / (fp + epsilon))
         metrics_dict['snr_tp_fp'] = snr_tp_fp
 
-    # SNR calculation logic for CALC_SNR_EVAL_PCPNET is not added as it's not clear in the original file.
-    # If snr_eval_pcpnet calculation logic exists, add it here.
+    # CALC_SNR_EVAL_PCPNET 관련 SNR 계산 로직은 원본 파일에서 해당 부분이 명확하지 않아 추가하지 않음.
+    # 만약 snr_eval_pcpnet 계산 로직이 있다면 여기에 추가.
 
     return metrics_dict
 
 
-# --- Visualization Functions ---
+# --- 시각화 함수들 ---
 
 def visualize_batch_results(batch_data_tuple: tuple,
                             batch_metrics: dict,
@@ -393,12 +393,12 @@ def visualize_batch_results(batch_data_tuple: tuple,
                             phase: str, # 'train' or 'val'
                             save_dir_path: str,
                             sample_to_show_idx: int = 0,
-                            time_step_to_show_idx: int = -1): # Last time step
+                            time_step_to_show_idx: int = -1): # 마지막 시간 스텝
     """
     Visualize results for a single sample within a batch during training/validation.
     Saves the plot to a file.
     """
-    # Create visualization save folder if it doesn't exist (should have been created by config.create_save_directories)
+    # 시각화 결과 저장 폴더가 없으면 생성 (config.create_save_directories 에서 이미 생성했을 것)
     os.makedirs(save_dir_path, exist_ok=True)
 
     try:
@@ -457,7 +457,7 @@ def visualize_batch_results(batch_data_tuple: tuple,
 
     except Exception as e:
         print(f"Error during batch visualization (epoch {epoch_num}, batch {batch_idx}): {e}")
-        if 'fig' in locals() and plt.fignum_exists(fig.number): # Close figure even if error occurs
+        if 'fig' in locals() and plt.fignum_exists(fig.number): # 오류 발생 시에도 figure 닫기
             plt.close(fig)
 
 
@@ -477,7 +477,7 @@ def visualize_training_history(train_history_list: list,
 
     epochs_range = range(1, len(train_history_list) + 1)
 
-    # Define base metric keys to plot
+    # Plot할 메트릭 키 정의
     metric_keys_to_plot_base = ['loss', 'accuracy', 'precision', 'recall', 'f1', 'auc']
     metric_keys_snr = []
     if config_obj.CALC_SNR_TP_FP:
@@ -519,27 +519,27 @@ def visualize_training_history(train_history_list: list,
         axes[i].legend()
         axes[i].grid(True)
 
-    # Hide remaining empty subplots
+    # 남는 빈 서브플롯 숨기기
     for j in range(i + 1, len(axes)):
         axes[j].axis('off')
 
     plt.tight_layout(rect=[0, 0.03, 1, 0.95])
     plt.savefig(save_path)
-    plt.close(fig) # Free memory
+    plt.close(fig)
     print(f"Training history plot saved to {save_path}")
 
 
 def visualize_test_set_results(aggregated_final_metrics: dict,
                                config_obj, # cfg 객체 (SAVE_DIR 접근)
-    # (Optional) Prediction probabilities for entire test set
-    # (Optional) Actual labels for entire test set
+                               all_pred_probs_numpy: np.ndarray = None, # (선택) 전체 테스트셋 예측 확률
+                               all_targets_numpy: np.ndarray = None):   # (선택) 전체 테스트셋 실제 값
     """
     Visualize final test results: Confusion Matrix, and optionally prediction probability distribution.
     Saves plots and a summary text file.
     """
     save_dir = os.path.join(config_obj.SAVE_DIR, 'visualizations')
     print(f"Visualizing test results and saving to {save_dir}...")
-    os.makedirs(save_dir, exist_ok=True) # Check if it exists just in case
+    os.makedirs(save_dir, exist_ok=True) # 이미 생성되었겠지만, 확인차
 
     try:
         # 1. Confusion Matrix (from aggregated TP, FP, TN, FN)
@@ -570,14 +570,14 @@ def visualize_test_set_results(aggregated_final_metrics: dict,
         plt.close(fig_cm)
         print(f"Test confusion matrix saved to {cm_save_path}")
 
-        # <<< [New] Calculate and visualize ROC Curve and AUC >>>
+            # <<< [신규] ROC 커브 및 AUC 계산 및 시각화 >>>
         if all_pred_probs_numpy is not None and all_targets_numpy is not None and len(all_targets_numpy) > 0:
             # ROC 커브 계산
             fpr, tpr, thresholds = roc_curve(all_targets_numpy, all_pred_probs_numpy)
             roc_auc = auc(fpr, tpr)
             
-            # Add AUC to aggregated metrics
-            if aggregated_final_metrics: # If frame-level metrics exist
+            # 집계된 메트릭에 AUC 추가
+            if aggregated_final_metrics: # 프레임 레벨 메트릭이 있는 경우
                 aggregated_final_metrics['overall_auc'] = roc_auc
 
             # ROC 커브 시각화
@@ -597,9 +597,9 @@ def visualize_test_set_results(aggregated_final_metrics: dict,
             print(f"Test ROC curve saved to {roc_save_path}")
 
         # 2. (Optional) Prediction Probability Distribution (if data provided)
-        if all_pred_probs_numpy is not None and all_targets_numpy is not None: # Meaningful only with targets
+        if all_pred_probs_numpy is not None and all_targets_numpy is not None: # 타겟도 함께 있어야 의미 해석 가능
             fig_hist, ax_hist = plt.subplots(figsize=(10, 6))
-            # Filter probabilities predicted as actual positive events
+            # 실제 이벤트(positive class)로 예측된 확률만 필터링
             probs_for_positive_class_actual_positive = all_pred_probs_numpy[all_targets_numpy == 1]
             probs_for_positive_class_actual_negative = all_pred_probs_numpy[all_targets_numpy == 0]
 
@@ -621,13 +621,13 @@ def visualize_test_set_results(aggregated_final_metrics: dict,
             print(f"Test probability distribution plot saved to {hist_save_path}")
 
         # 3. Save summary text file with all metrics
-        summary_text_path = os.path.join(config_obj.SAVE_DIR, 'test_results_summary.txt') # Save in SAVE_DIR root
+        summary_text_path = os.path.join(config_obj.SAVE_DIR, 'test_results_summary.txt') # SAVE_DIR 최상위에 저장
         with open(summary_text_path, 'w') as f:
             f.write(f"Test Results Summary (Aggregated/Averaged over masked pixels)\n")
             f.write("=" * 50 + "\n")
             f.write(f"Total Masked Pixels Evaluated (Sum for CM): {total_pixels_in_cm}\n\n")
             metrics_to_report = ['accuracy', 'precision', 'recall', 'f1', 'auc', 'snr_tp_fp', 'tp', 'fp', 'tn', 'fn']
-            # Add SNR for CALC_SNR_EVAL_PCPNET if applicable
+            # CALC_SNR_EVAL_PCPNET 관련 SNR도 있다면 추가
             # if config_obj.CALC_SNR_EVAL_PCPNET: metrics_to_report.append('snr_eval_pcpnet')
 
             for key in metrics_to_report:
@@ -674,9 +674,9 @@ def create_evaluation_gif(input_frames_seq: np.ndarray,      # [T, H, W]
 
     print(f"Creating GIF for {output_gif_filename_base} ({num_total_frames} frames) -> {output_gif_path}...")
 
-    # GIF frame rate and size settings
-    gif_display_fps = max(1, int(config_obj.FPS / 4)) # 1/4 of original FPS or minimum 1 FPS
-    target_display_width = 320 # Target width for each frame in GIF
+    # GIF 프레임 속도 및 크기 설정
+    gif_display_fps = max(1, int(config_obj.FPS / 4)) # 원본 FPS의 1/4 또는 최소 1 FPS
+    target_display_width = 320 # GIF 내 각 프레임의 목표 너비
     scale_factor = min(1.0, target_display_width / config_obj.FRAME_WIDTH) if config_obj.FRAME_WIDTH > 0 else 1.0
     display_w = int(config_obj.FRAME_WIDTH * scale_factor)
     display_h = int(config_obj.FRAME_HEIGHT * scale_factor)
@@ -690,15 +690,15 @@ def create_evaluation_gif(input_frames_seq: np.ndarray,      # [T, H, W]
         current_pred = predicted_frames_seq[frame_idx]
         current_eval_mask = eval_mask_frames_seq[frame_idx]
 
-        # Convert each frame to uint8 BGR image in the [0, 255] range for visualization
+        # 시각화를 위해 각 프레임을 [0, 255] 범위의 uint8 BGR 이미지로 변환
         def format_frame_for_gif(frame_data, mask_data, colormap=cv2.COLORMAP_VIRIDIS, is_input_type=False):
-            masked_frame = frame_data * mask_data # Apply evaluation mask
+            masked_frame = frame_data * mask_data # 평가 마스크 적용
             # Normalize to 0-1 if not already binary
             norm_frame = masked_frame.astype(np.float32)
             min_val, max_val = norm_frame.min(), norm_frame.max()
             if max_val > min_val:
                 norm_frame = (norm_frame - min_val) / (max_val - min_val)
-            else: # When all values are the same or 0 due to mask
+            else: # 모든 값이 같거나 마스크로 인해 0인 경우
                 norm_frame = np.zeros_like(norm_frame)
 
             uint8_frame = (norm_frame * 255).astype(np.uint8)
@@ -711,18 +711,18 @@ def create_evaluation_gif(input_frames_seq: np.ndarray,      # [T, H, W]
             return cv2.resize(colored_frame, (display_w, display_h), interpolation=cv2.INTER_NEAREST)
 
         vis_input_frame = format_frame_for_gif(current_input, current_eval_mask, is_input_type=True)
-        vis_real_gt_frame = format_frame_for_gif(current_real_gt, current_eval_mask, colormap=cv2.COLORMAP_COOL) # Cyan series
-        vis_noise_gt_frame = format_frame_for_gif(current_noise_gt, current_eval_mask, colormap=cv2.COLORMAP_AUTUMN) # Orange/Red series
-        vis_pred_frame = format_frame_for_gif(current_pred, current_eval_mask, colormap=cv2.COLORMAP_HOT) # Bright Yellow/Red series
+        vis_real_gt_frame = format_frame_for_gif(current_real_gt, current_eval_mask, colormap=cv2.COLORMAP_COOL) # 파란 계열
+        vis_noise_gt_frame = format_frame_for_gif(current_noise_gt, current_eval_mask, colormap=cv2.COLORMAP_AUTUMN) # 주황/빨강 계열
+        vis_pred_frame = format_frame_for_gif(current_pred, current_eval_mask, colormap=cv2.COLORMAP_HOT) # 밝은 노랑/빨강 계열
 
-        # Concatenate 4 frames horizontally
+        # 4개 프레임을 가로로 연결
         combined_image = np.hstack((vis_input_frame, vis_real_gt_frame, vis_noise_gt_frame, vis_pred_frame))
 
-        # Add frame number text
+        # 프레임 번호 텍스트 추가
         cv2.putText(combined_image, f"Frame: {frame_idx + 1}/{num_total_frames}", (10, 20),
                     cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1, cv2.LINE_AA)
 
-        gif_frames_for_output.append(cv2.cvtColor(combined_image, cv2.COLOR_BGR2RGB)) # imageio uses RGB order
+        gif_frames_for_output.append(cv2.cvtColor(combined_image, cv2.COLOR_BGR2RGB)) # imageio는 RGB 순서
 
     if gif_frames_for_output:
         imageio.mimsave(output_gif_path, gif_frames_for_output, fps=gif_display_fps)
@@ -744,7 +744,7 @@ def visualize_first_data_samples(set_name_str: str,
         print(f"  - No data to visualize for {set_name_str} set.")
         return
 
-    # Get the data for the first file
+    # 첫 번째 파일 데이터 가져오기
     first_file_dict = processed_data_list[0]
     input_f_seq = first_file_dict['input_frames']       # [T, H, W]
     real_gt_f_seq = first_file_dict['real_event_gt']    # [T, H, W]
@@ -759,7 +759,7 @@ def visualize_first_data_samples(set_name_str: str,
         print(f"  - No frames to visualize in this file.")
         return
 
-    # Frame indices to display: first, middle, last
+    # 보여줄 프레임 인덱스: 첫 프레임, 중간 프레임, 마지막 프레임
     indices_to_display = sorted(list(set([0, num_frames_in_file // 2, num_frames_in_file - 1])))
     print(f"  - Showing frames at indices: {indices_to_display}")
 
@@ -774,7 +774,7 @@ def visualize_first_data_samples(set_name_str: str,
         im2 = axes[2].imshow(noise_gt_f_seq[frame_idx_to_show], cmap='binary'); axes[2].set_title('Noise Event GT'); fig.colorbar(im2, ax=axes[2], fraction=0.046, pad=0.04)
         im3 = axes[3].imshow(eval_mask_f_seq[frame_idx_to_show], cmap='binary'); axes[3].set_title('Evaluation Mask'); fig.colorbar(im3, ax=axes[3], fraction=0.046, pad=0.04)
 
-        for ax_item in axes: ax_item.axis('off') # Hide axis info
+        for ax_item in axes: ax_item.axis('off') # 축 정보 숨기기
 
         plt.tight_layout(rect=[0, 0.03, 1, 0.95])
         save_filename = os.path.join(vis_save_dir, f'{set_name_str}_first_file_sample_frame_{frame_idx_to_show}.png')
@@ -784,11 +784,11 @@ def visualize_first_data_samples(set_name_str: str,
 
 
 # ===================================================================
-# Helper functions for setting up project execution environment
+# 프로젝트 실행 환경 설정을 위한 헬퍼 함수들 (config.py에서 이동)
 # ===================================================================
 
 def setup_device_and_batch_size(config_instance):
-    """Sets DEVICE and BATCH_SIZE based on the Config object."""
+    """Config 객체를 받아 DEVICE 및 BATCH_SIZE를 설정합니다."""
     physical_gpu_count = torch.cuda.device_count() if torch.cuda.is_available() else 0
     if physical_gpu_count > 0:
         if config_instance.USE_MULTI_GPU and physical_gpu_count > 1:
@@ -822,7 +822,7 @@ def setup_device_and_batch_size(config_instance):
     print(f"✅ Effective Device set to: {config_instance.DEVICE} | Effective Batch size: {config_instance.BATCH_SIZE}")
 
 def set_seed_all(seed_value: int):
-    """Fix all random seeds to ensure reproducibility."""
+    """모든 랜덤 시드를 고정하여 재현성을 확보합니다."""
     random.seed(seed_value)
     np.random.seed(seed_value)
     torch.manual_seed(seed_value)
@@ -833,7 +833,7 @@ def set_seed_all(seed_value: int):
     print(f"✅ Random seed set to: {seed_value}")
 
 def create_save_directories(config_instance):
-    """Creates directories for saving results."""
+    """결과 저장을 위한 디렉토리를 생성합니다."""
     base_save_dir = config_instance.SAVE_DIR
     vis_save_dir = os.path.join(base_save_dir, 'visualizations')
     os.makedirs(base_save_dir, exist_ok=True)
@@ -842,7 +842,7 @@ def create_save_directories(config_instance):
 
 
 
-# Added to utils.py (replace if already exists)
+# utils.py 파일에 추가 (기존에 있었다면 아래 코드로 대체)
 import pandas as pd
 import numpy as np
 
@@ -852,10 +852,10 @@ def save_metrics_to_csv(filename: str,
                         per_file_metrics_list: list[dict], 
                         summary_title: str):
     """
-    Intelligently saves summary (Aggregated) and detailed (Per-File) metrics to a single CSV file.
-    Dynamically processes all keys in the passed dictionaries.
+    요약(Aggregated)과 상세(Per-File) 내역을 하나의 CSV 파일로 지능적으로 저장합니다.
+    전달된 딕셔너리의 모든 키를 동적으로 처리합니다.
     """
-    # Filter only valid detailed metric data
+    # 유효한 상세 메트릭 데이터만 필터링
     valid_per_file_metrics = [m for m in per_file_metrics_list if m and 'error' not in m]
     if not valid_per_file_metrics and not aggregated_metrics:
         print(f"No valid metrics to save for {filename}.")
@@ -865,26 +865,26 @@ def save_metrics_to_csv(filename: str,
 
     try:
         with open(csv_path, 'w', encoding='utf-8-sig', newline='') as f:
-            # --- 1. Dynamically save Summary (Aggregated) info ---
+            # --- 1. 요약(Aggregated) 정보 동적 저장 ---
             f.write(f'--- {summary_title} ---\n')
-            f.write('Metric,Value\n') # CSV Header
+            f.write('Metric,Value\n') # CSV 헤더
             if aggregated_metrics:
                 for key, value in aggregated_metrics.items():
-                    # For better readability, convert key names (e.g., 'overall_f1' -> 'Overall F1')
+                    # 보기 좋게 key 이름 변환 (e.g., 'overall_f1' -> 'Overall F1')
                     metric_name = key.replace('_', ' ').title() 
                     val_str = f"{value:.6f}" if isinstance(value, (float, np.floating)) else str(value)
                     f.write(f'"{metric_name}","{val_str}"\n')
             
-            # --- 2. Dynamically save Detailed (Per-File) info ---
+            # --- 2. 상세(Per-File) 정보 동적 저장 ---
             if valid_per_file_metrics:
                 f.write('\n--- Detailed Per-File Metrics ---\n')
-                # Automatically create DataFrame from list of dictionaries
+                # 리스트의 딕셔너리로부터 자동으로 DataFrame 생성
                 df = pd.DataFrame(valid_per_file_metrics)
                 
-                # Keep only base names from file paths for better readability
+                # 파일 경로에서 기본 이름만 남겨서 가독성 향상
                 if 'file_path' in df.columns:
                     df['file_name'] = df['file_path'].apply(os.path.basename)
-                    # Reposition file_name as the first column
+                    # file_name을 첫 번째 열로 재배치
                     cols = ['file_name'] + [col for col in df.columns if col != 'file_name' and col != 'file_path']
                     df = df[cols]
 
