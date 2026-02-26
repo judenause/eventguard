@@ -4,9 +4,14 @@ processed_cache/
 results/
 output_videos/
 logs/
+
+# Exclude all .npy and .pth except sample_data and weights
 *.npy
 *.pth
 *.pt
+!sample_data/*.npy
+!weights/*.pth
+
 *.log
 *.txt
 

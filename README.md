@@ -2,6 +2,15 @@
 
 This repository contains the official implementation of the paper: **"Robust Event-based Signal-Noise Normalization using Spiking Neural Networks"**.
 
+## Quick Start (Demo)
+
+We provide a sample event stream and pre-trained weights for a quick demonstration.
+
+```bash
+# Run evaluation on the sample data using provided weights
+python main_evaluate.py --model_file best_model_v8.pth --save_dir ./weights --test_data_folder ./sample_data
+```
+
 ## Project Structure
 
 - `model.py`: Core SNN architecture (Fully Binary ConvSNN).

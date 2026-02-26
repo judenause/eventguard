@@ -15,7 +15,7 @@ class Config:
     DATA_ROOT = './data/esd/total/'
     TRAIN_DATA_FOLDER = os.path.join(DATA_ROOT, 'train/')
     VAL_DATA_FOLDER = os.path.join(DATA_ROOT, 'val/')
-    TEST_DATA_FOLDER = os.path.join(DATA_ROOT, 'test_50/')
+    TEST_DATA_FOLDER = './sample_data/'
     DATA_FILE_PATTERN = '*.npy'
     
     # --- Data Caching (Lazy Loading) ---
