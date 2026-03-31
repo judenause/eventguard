@@ -1,6 +1,6 @@
-# EventGuard: In-Sensor Denoising for Frame-Based Event Vision Sensors via Algorithm--Hardware Co-Design
+# EventGuard: Sparsity-Aware In-Sensor Denoising for Frame-Based Event Vision Sensors
 
-This repository contains the official implementation of the paper: **"EventGuard: In-Sensor Denoising for Frame-Based Event Vision Sensors via Algorithm--Hardware Co-Design"**.
+This repository contains the official implementation of the paper: **"EventGuard: Sparsity-Aware In-Sensor Denoising for Frame-Based Event Vision Sensors"**.
 
 ## Quick Start (Demo)
 
