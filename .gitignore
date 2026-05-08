@@ -4,14 +4,20 @@ processed_cache/
 results/
 output_videos/
 logs/
+archive/
 
 # Exclude all .npy and .pth except sample_data and weights
 *.npy
 *.pth
 *.pt
 !sample_data/*.npy
-!weights/*.pth
-!demo_results/*
+# Only include the best model weight if specified, or exclude all to be safe
+# !weights/best_model_v8.pth 
+weights/*.pth
+
+# Results and Visualizations
+demo_results/
+weights/visualizations/
 
 *.log
 *.txt
