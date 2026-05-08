@@ -16,7 +16,7 @@ from model import Hybrid_SNN_Pure_BNN
 from evaluation_engine import evaluate_model_on_dataset
 
 # def save_metrics_to_csv(filename, results_dir, aggregated_metrics, per_file_metrics_list, summary_title):
-#     """요약과 상세 내역을 포함하여 CSV 파일로 저장하는 유틸리티 함수"""
+#     """Utility function to save summary and detailed metrics to a CSV file"""
 #     valid_metrics_list = [m for m in per_file_metrics_list if m and 'error' not in m]
 #     if not valid_metrics_list:
 #         print(f"No valid per-file metrics to save for {filename}.")

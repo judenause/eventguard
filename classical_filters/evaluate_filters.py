@@ -266,7 +266,7 @@ def save_results(df_results: pd.DataFrame, df_aggregated: pd.DataFrame,
         f.write(f"Number of files: {df_aggregated['num_files'].iloc[0]}\n")
         f.write(f"Total events: {df_aggregated['total_events'].iloc[0]:,}\n\n")
         
-        # 필터 설정값 출력
+        # Print filter configuration parameters
         f.write(f"Filter Configuration\n")
         f.write(f"{'-'*70}\n")
         for filter_name, filter_params in cfg.FILTER_CONFIGS.items():

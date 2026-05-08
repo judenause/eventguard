@@ -8,7 +8,7 @@ import pandas as pd # Used for overall aggregation (DataFrame)
 import math
 
 # If compute_metrics is in utils.py, use the import statement below.
-from sklearn.metrics import roc_auc_score # compute_metrics에서 사용
+from sklearn.metrics import roc_auc_score # Used in compute_metrics
 
 
 def compute_event_stream_metrics(S_denoised: np.ndarray, S_stream_GT: np.ndarray, config_obj) -> dict:
@@ -97,11 +97,11 @@ def compute_masked_stream_metrics(
         # Cannot evaluate if GT events are missing
         return {'tp_event': 0, 'fp_event': 0, 'fn_event': 0, 'tn_event': 0, 'f1_event': 1.0}
 
-    # # --- 2. 평가 기준 시간 설정 ---
-    # # GT의 실제 이벤트(label=0)를 기준으로 시작 시간 결정
+    # # --- 2. Set evaluation reference time ---
+    # # Determine start time based on actual GT events (label=0)
     # gt_real_events = S_stream_GT[S_stream_GT[:, 0] == 0]
     # if len(gt_real_events) == 0:
-    #     # 실제 이벤트가 없으면 가장 빠른 이벤트를 기준으로 함
+    #     # If no real events, use the earliest event
     #     min_timestamp = S_stream_GT[0, 3]
     # else:
     #     min_timestamp = gt_real_events[0, 3]
@@ -336,7 +336,7 @@ def evaluate_model_on_dataset(
             # stream_metrics = compute_event_stream_metrics(S_denoised_np, original_labeled_event_stream, config_obj)
             stream_metrics = compute_masked_stream_metrics(
                 S_stream_GT=original_labeled_event_stream,
-                denoised_frames=full_file_preds_np_for_vis, # 모델이 예측한 프레임 마스크
+                denoised_frames=full_file_preds_np_for_vis, # Predicted frame mask from model
                 min_timestamp=min_ts_from_data,
                 fps=config_obj.FPS,                         # Fetch FPS value from settings
                 frame_width=width,                          # Using previously defined variable
@@ -373,13 +373,13 @@ def evaluate_model_on_dataset(
 
             stream_metrics['event_denoising_precision_edp'] = edp
             stream_metrics['event_esnr_db'] = esnr
-            # <<< Calculation logic added >>>
+            # <<< EDP, ESNR calculation logic added >>>
 
-            # <<< [핵심 수정] 개별 파일의 이벤트 스트림 AUC 계산 및 저장 >>>
+            # <<< [Key Modification] Calculate and save event stream AUC for each file >>>
             file_event_labels = []
             file_event_probs = []
 
-            # <<< [ADDED] 이벤트 스트림 AUC를 위한 데이터 수집 >>>
+            # <<< [ADDED] Data collection for event stream AUC >>>
             valid_indices = [i for i, event in enumerate(original_labeled_event_stream) if 0 <= int((event[3] - min_ts_from_data) * config_obj.FPS) < num_total_frames_in_file and 0 <= int(event[2]) < height and 0 <= int(event[1]) < width]
             valid_events = original_labeled_event_stream[valid_indices]
             if len(valid_events) > 0:
@@ -391,15 +391,15 @@ def evaluate_model_on_dataset(
                 all_event_stream_labels.append(labels)
                 all_event_stream_probs.append(probs)
 
-                # 개별 파일 AUC 계산
+                # Calculate AUC for individual file
                 if len(np.unique(labels)) > 1:
                     try:
                         file_auc = roc_auc_score(labels, probs)
                         stream_metrics['event_stream_auc'] = file_auc # 딕셔너리에 추가
                     except Exception as e:
-                        stream_metrics['event_stream_auc'] = np.nan # 계산 불가 시 NaN으로 처리
+                        stream_metrics['event_stream_auc'] = np.nan # Set to NaN if calculation is impossible
                 else:
-                    stream_metrics['event_stream_auc'] = np.nan # 단일 클래스만 존재 시 NaN
+                    stream_metrics['event_stream_auc'] = np.nan # NaN if only a single class exists
             
             per_file_event_stream_metrics_list.append(stream_metrics)
 
@@ -472,7 +472,7 @@ def evaluate_model_on_dataset(
         event_stream_metrics_df = pd.DataFrame(valid_event_stream_metrics_for_agg)
         if not event_stream_metrics_df.empty:
             # final_aggregated_event_stream_metrics = {}
-            # <<< [핵심 수정] 숫자 타입 선택 전에 inf 값을 NaN으로 변환 >>>
+            # <<< [Key Modification] Convert inf values to NaN before selecting numeric types >>>
             event_stream_metrics_df.replace([np.inf, -np.inf], np.nan, inplace=True)
             numeric_cols = event_stream_metrics_df.select_dtypes(include=np.number).columns
             exclude_cols = {'tp_event', 'fp_event', 'tn_event', 'fn_event',
@@ -481,7 +481,7 @@ def evaluate_model_on_dataset(
             cols_for_mean = [col for col in numeric_cols if col not in exclude_cols]
             
             for col in cols_for_mean:
-                # 이제 inf가 없으므로 finite_values 변환이 필요 없음
+                # Since inf is gone, finite_values conversion is no longer needed
                 if not event_stream_metrics_df[col].dropna().empty:
                     final_aggregated_event_stream_metrics[f'avg_per_file_{col}'] = event_stream_metrics_df[col].mean(skipna=True)
                 else:
@@ -491,7 +491,7 @@ def evaluate_model_on_dataset(
             # cols_for_mean = [col for col in numeric_cols if 'tp_' not in col and 'fp_' not in col and 'tn_' not in col and 'fn_' not in col]
             # for col in cols_for_mean:
             #     if col in event_stream_metrics_df:
-            #         # 무한대(inf) 값을 NaN으로 바꿔 평균 계산에서 제외
+            #         # Replace infinity (inf) values with NaN and exclude them from mean calculation
             #         finite_values = event_stream_metrics_df[col].replace([np.inf, -np.inf], np.nan)
             #         if not finite_values.dropna().empty:
             #             final_aggregated_event_stream_metrics[f'avg_per_file_{col}'] = finite_values.mean(skipna=True)
@@ -502,7 +502,7 @@ def evaluate_model_on_dataset(
             #                       'noise_rejection_rate_event', 'snr_tp_fp_event',
             #                       'signal_retain_sr', 'noise_removal_nr', 
             #                       'denoising_accuracy_da', 'event_denoising_precision_edp',
-            #                       'event_snr_esnr_db'] # ESNR 추가
+            #                       'event_snr_esnr_db'] # ESNR added
             # for col in cols_to_avg_stream:
             #     if col in event_stream_metrics_df and pd.api.types.is_numeric_dtype(event_stream_metrics_df[col]):
             #         finite_values = event_stream_metrics_df[col][np.isfinite(event_stream_metrics_df[col])]
@@ -510,13 +510,13 @@ def evaluate_model_on_dataset(
             #             final_aggregated_event_stream_metrics[f'avg_per_file_{col}'] = finite_values.mean()
             #         else:
             #              final_aggregated_event_stream_metrics[f'avg_per_file_{col}'] = np.nan
-            #     else: # 컬럼이 없거나 숫자형이 아닌 경우
+            #     else: # Column missing or not numeric type
             #         final_aggregated_event_stream_metrics[f'avg_per_file_{col}'] = np.nan
 
 
             total_tp_e = event_stream_metrics_df['tp_event'].sum(skipna=True)
             total_fp_e = event_stream_metrics_df['fp_event'].sum(skipna=True)
-            total_fn_e = event_stream_metrics_df['fn_event'].sum(skipna=True) # skipnaTrue 오타 수정
+            total_fn_e = event_stream_metrics_df['fn_event'].sum(skipna=True) # Fixed typo in skipna=True
             total_tn_e = event_stream_metrics_df['tn_event'].sum(skipna=True)
             final_aggregated_event_stream_metrics['total_tp_event'] = total_tp_e
             final_aggregated_event_stream_metrics['total_fp_event'] = total_fp_e
@@ -580,7 +580,7 @@ def evaluate_model_on_dataset(
 
     # return (final_aggregated_frame_metrics, per_file_frame_metrics_list,
     #         all_files_preds_list, all_files_probs_list, all_files_targets_list,
-    #         all_files_eval_masks_list, # 반환 값 추가
+    #         all_files_eval_masks_list, # Added return value
     #         per_file_event_stream_metrics_list, final_aggregated_event_stream_metrics)
     return (final_aggregated_frame_metrics, per_file_frame_metrics_list,
             all_files_preds_list, all_files_probs_list, all_files_targets_list, all_files_eval_masks_list,

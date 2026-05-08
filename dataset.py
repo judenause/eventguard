@@ -53,7 +53,7 @@ class EventFrameLazyDataset(Dataset):
                     self.index_map.append((file_idx, window_start_frame_idx))
                 self.total_windows += num_windows_in_this_file
             # else:
-                # data_processing 단계에서 이미 WINDOW_SIZE보다 작은 프레임 수의 파일은 필터링되었을 수 있음.
+                # Files with fewer frames than WINDOW_SIZE may have already been filtered during data_processing.
                 # print(f"  File {file_idx} ({os.path.basename(file_entry_dict.get('file_path','N/A'))}) has {num_frames_in_file} frames, less than window_size {self.window_size}. No windows generated.")
 
         if self.total_windows == 0 and len(self.data_list) > 0:
@@ -199,12 +199,12 @@ class EventFrameWindowDataset(Dataset):
         # Add channel dimension (C=1): (T_win, H, W) -> (T_win, 1, H, W)
         inputs_np_ch = np.expand_dims(self.input_windows[idx], axis=1)
 
-        # 해당 인덱스의 GT 및 마스크 윈도우 가져오기
+        # Fetch GT and mask windows for the given index
         real_gt_np = self.real_gt_windows[idx]
         noise_gt_np = self.noise_gt_windows[idx]
         eval_mask_np = self.eval_mask_windows[idx]
 
-        # Numpy 배열을 PyTorch Tensor로 변환
+        # Convert NumPy arrays to PyTorch tensors
         return (torch.FloatTensor(inputs_np_ch),
                 torch.FloatTensor(real_gt_np),
                 torch.FloatTensor(noise_gt_np),

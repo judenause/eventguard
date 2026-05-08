@@ -9,7 +9,7 @@ import math
 def events_to_frames(events: np.ndarray,
                      fps: int,
                      frame_width: int,
-                     frame_height: int) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, float]: # 반환 타입에 float 추가
+                     frame_height: int) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, float]: # Added float to return type
     """
     Converts raw event data to various frame representations.
     """
@@ -18,7 +18,7 @@ def events_to_frames(events: np.ndarray,
         # Return 0.0 for min_timestamp
         return empty_frames, empty_frames, empty_frames, empty_frames, 0.0
 
-    # --- 1. 시간 기준점 설정 및 프레임 인덱스 계산 (벡터화 방식) ---
+    # --- 1. Set time reference point and calculate frame indices (vectorized method) ---
     events = events[np.argsort(events[:, 3])]
     min_timestamp = events[0, 3] # This value needs to be returned.
     time_window_duration = 1.0 / fps
@@ -58,30 +58,30 @@ def events_to_frames(events: np.ndarray,
 #                      frame_width: int,
 #                      frame_height: int) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
 #     """
-#     Raw event data를 다양한 프레임 표현으로 변환합니다. (수정된 버전)
+#     Converts raw event data to various frame representations. (Modified version)
 #     """
 #     if not isinstance(events, np.ndarray) or events.ndim != 2 or events.shape[1] != 5 or len(events) == 0:
 #         empty_frames = np.empty((0, frame_height, frame_width), dtype=np.float32)
 #         return empty_frames, empty_frames, empty_frames, empty_frames
 
-#     # --- 1. 시간 기준점 설정 및 프레임 인덱스 계산 (벡터화 방식) ---
+#     # --- 1. Set time reference point and calculate frame indices (vectorized method) ---
 #     events = events[np.argsort(events[:, 3])]
 #     min_timestamp = events[0, 3]
 #     time_window_duration = 1.0 / fps
 
-#     # 모든 이벤트에 대한 프레임 인덱스를 한 번에 계산
+#     # Calculate frame indices for all events at once
 #     frame_indices = np.floor((events[:, 3] - min_timestamp) / time_window_duration).astype(int)
     
-#     # 필요한 총 프레임 수 결정
+#     # Determine total number of frames needed
 #     num_frames = frame_indices.max() + 1
     
-#     # --- 2. 프레임 배열 초기화 ---
+#     # --- 2. Initialize frame arrays ---
 #     all_input_frames = np.zeros((num_frames, frame_height, frame_width), dtype=np.float32)
 #     all_real_event_gt = np.zeros((num_frames, frame_height, frame_width), dtype=np.float32)
 #     all_noise_event_gt = np.zeros((num_frames, frame_height, frame_width), dtype=np.float32)
     
-#     # --- 3. 프레임에 이벤트 채우기 (고급 인덱싱) ---
-#     # 유효한 좌표를 가진 이벤트만 필터링
+#     # --- 3. Fill frames with events (advanced indexing) ---
+#     # Filter events with valid coordinates only
 #     x_coords = events[:, 1].astype(int)
 #     y_coords = events[:, 2].astype(int)
 #     valid_mask = (x_coords >= 0) & (x_coords < frame_width) & \
@@ -92,18 +92,18 @@ def events_to_frames(events: np.ndarray,
 #     valid_x = x_coords[valid_mask]
 #     valid_labels = events[valid_mask, 0]
 
-#     # 모든 이벤트 위치를 한 번에 1로 설정
+#     # Set all event positions to 1 at once
 #     all_input_frames[valid_indices, valid_y, valid_x] = 1.0
 
-#     # 실제 이벤트(label=0) 위치를 1로 설정
+#     # Set real event (label=0) positions to 1
 #     real_mask = valid_labels == 0
 #     all_real_event_gt[valid_indices[real_mask], valid_y[real_mask], valid_x[real_mask]] = 1.0
     
-#     # 노이즈 이벤트(label>0) 위치를 1로 설정
+#     # Set noise event (label>0) positions to 1
 #     noise_mask = valid_labels != 0
 #     all_noise_event_gt[valid_indices[noise_mask], valid_y[noise_mask], valid_x[noise_mask]] = 1.0
 
-#     # evaluation_mask는 input_frames와 동일
+#     # evaluation_mask is same as input_frames
 #     all_evaluation_mask = all_input_frames
 
 #     return all_input_frames, all_real_event_gt, all_noise_event_gt, all_evaluation_mask
@@ -241,8 +241,8 @@ def create_all_sliding_windows(input_frames_seq: np.ndarray,
 
     num_windows = (num_total_frames - window_size) // stride + 1
 
-    # np.lib.stride_tricks.as_strided를 사용한 효율적인 윈도우 생성
-    # 결과는 view이므로, 독립적인 배열을 원하면 .copy() 사용
+    # Efficient window generation using np.lib.stride_tricks.as_strided
+    # Result is a view; use .copy() for an independent array
     win_inputs = np.lib.stride_tricks.as_strided(
         input_frames_seq,
         shape=(num_windows, window_size, frame_h, frame_w),
@@ -251,7 +251,7 @@ def create_all_sliding_windows(input_frames_seq: np.ndarray,
                  input_frames_seq.strides[1],
                  input_frames_seq.strides[2]),
         writeable=False
-    ).copy() # 안전하게 copy
+    ).copy() # Safely copy
 
     win_real_gt = np.lib.stride_tricks.as_strided(
         real_gt_frames_seq,

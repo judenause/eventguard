@@ -14,10 +14,10 @@ from utils import compute_metrics, visualize_batch_results # focal_loss is passe
 def train_one_epoch(model: nn.Module,
                     dataloader: DataLoader,
                     optimizer: torch.optim.Optimizer,
-                    lr_scheduler: torch.optim.lr_scheduler._LRScheduler, # 타입 힌트용
-                    loss_function, # 손실 함수를 직접 받음 (예: utils.focal_loss)
+                    lr_scheduler: torch.optim.lr_scheduler._LRScheduler, # For type hinting
+                    loss_function, # Receives the loss function directly (e.g., utils.focal_loss)
                     device: torch.device,
-                    config_obj, # config.py의 cfg 인스턴스
+                    config_obj, # cfg instance from config.py
                     epoch_num: int,
                     visualization_save_dir: str,
                     writer: SummaryWriter = None,
@@ -56,7 +56,7 @@ def train_one_epoch(model: nn.Module,
     accumulated_metrics_sum = {} # e.g., {'auc': 0.0, 'snr_tp_fp': 0.0}
     num_valid_metric_batches = {} # Number of valid batches per metric (excluding NaN/inf)
 
-    # tqdm을 사용하여 배치 진행률 표시
+    # Display batch progress using tqdm
     progress_bar = tqdm(dataloader, desc=f"Epoch {epoch_num} [TRAIN]", leave=False, unit="batch",dynamic_ncols=True)
 
     # Stateful Training State
@@ -231,8 +231,8 @@ def train_one_epoch(model: nn.Module,
 
         # (Optional) Visualize at specific batch intervals (e.g., first or middle batch)
         # if batch_idx == 0 or (batch_idx + 1) == len(dataloader) // 2 :
-        # if batch_idx == 0 and epoch_num % 5 == 0 : # 첫 배치, 5 에폭마다
-        #      if visualization_save_dir: # 저장 경로가 지정된 경우에만
+        # if batch_idx == 0 and epoch_num % 5 == 0 : # First batch, every 5 epochs
+        #      if visualization_save_dir: # Only if a save directory is specified
         #         visualize_batch_results(batch_data_tuple, batch_metrics_dict, epoch_num, batch_idx, 'train', visualization_save_dir)
 
     # --- After epoch ends ---
@@ -279,10 +279,10 @@ def train_one_epoch(model: nn.Module,
 
 def validate_one_epoch(model: nn.Module,
                        dataloader: DataLoader,
-                       loss_function, # 손실 함수를 직접 받음
+                       loss_function, # Receives the loss function directly
                        device: torch.device,
-                       config_obj, # config.py의 cfg 인스턴스
-                       epoch_num: int, # 로그 및 시각화 파일명용 (선택적)
+                       config_obj, # cfg instance from config.py
+                       epoch_num: int, # For log and visualization filenames (optional)
                        visualization_save_dir: str) -> dict:
     """
     Performs one epoch of validation for the model.
@@ -382,7 +382,7 @@ def validate_one_epoch(model: nn.Module,
             })
             
             # (Optional) Visualize first batch of validation set
-            # if batch_idx == 0 and epoch_num % 5 == 0 : # 첫 배치, 5 에폭마다
+            # if batch_idx == 0 and epoch_num % 5 == 0 : # First batch, every 5 epochs
             #     if visualization_save_dir:
             #         visualize_batch_results(batch_data_tuple, batch_metrics_dict, epoch_num, batch_idx, 'val', visualization_save_dir)
 

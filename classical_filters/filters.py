@@ -64,9 +64,9 @@ class BAF(BaseEventFilter):
     
     Based on: jAER BackgroundActivityFilter.java
     
-    Principle: 3x3 이웃에서 시간 윈도우 내 이벤트가 1개 이상 있으면 신호로 판단.
-    자기 픽셀은 제외하고 8개 이웃만 확인 (filterHotPixels 모드).
-    이것은 사실상 STCF k=1과 동일.
+    Principle: Judges as signal if there is at least one event within the time window in the 3x3 neighborhood.
+    Checks only 8 neighbors, excluding the pixel itself (filterHotPixels mode).
+    This is effectively the same as STCF with k=1.
     """
     
     def __init__(self, time_window: float = 0.01):
@@ -98,7 +98,7 @@ class BAF(BaseEventFilter):
             for dx in range(-1, 2):
                 for dy in range(-1, 2):
                     if dx == 0 and dy == 0:
-                        continue  # 자기 자신 제외 (filterHotPixels)
+                        continue  # Exclude self (filterHotPixels)
                     
                     neighbor_key = (x + dx, y + dy)
                     self.hw_ops['addition'] += 2
@@ -112,7 +112,7 @@ class BAF(BaseEventFilter):
                         if time_diff <= self.time_window:
                             ncorrelated += 1
                             predictions[i] = 0  # Signal
-                            break  # 1개만 찾으면 됨
+                            break  # Only need to find one
                 
                 if predictions[i] == 0:
                     break
@@ -128,11 +128,11 @@ class BAF_SinglePixel(BaseEventFilter):
     """
     Single Pixel Background Activity Filter
     
-    Principle: 같은 픽셀에서만 이전 이벤트 확인 (이웃 미확인)
-    더 엄격한 필터링 - 같은 픽셀에서 연속 이벤트가 있어야 통과
+    Principle: Checks previous events only at the same pixel (no neighbors checked)
+    Stricter filtering - requires consecutive events at the same pixel to pass
     
-    이것은 원래 가장 단순한 BAF 정의:
-    "같은 위치에서 시간 내 이전 이벤트가 있으면 신호"
+    This is the original simplest BAF definition:
+    "Signal if there was a previous event at the same location within time"
     """
     
     def __init__(self, time_window: float = 0.01):
@@ -161,7 +161,7 @@ class BAF_SinglePixel(BaseEventFilter):
             
             self.hw_ops['memory_access'] += 1
             
-            # 같은 픽셀에서만 이전 이벤트 확인
+            # Check previous event only at the same pixel
             if pixel_key in last_event_time:
                 time_diff = t - last_event_time[pixel_key]
                 self.hw_ops['addition'] += 1
@@ -256,7 +256,7 @@ class STCF(BaseEventFilter):
         # Build spatial-temporal index: dict of (x, y) -> list of (time, index, polarity)
         spatial_index = {}
         
-        # Polarity 추가: events[:, 4]
+        # Add Polarity: events[:, 4]
         polarities = events[:, 4].astype(int)
         
         for i in range(N):
@@ -490,11 +490,11 @@ class STCF_Sub(BaseEventFilter):
     Based on: "Design of a Spatiotemporal Correlation Filter for Event-based Sensors"
     
     Principle: 
-    - NxN 픽셀 블록을 하나의 셀로 서브샘플링
-    - 같은 블록 내에서 시간 윈도우 dT 내 이전 이벤트가 있으면 통과
-    - 자기 자신도 같은 블록의 다른 이벤트를 지원할 수 있음
+    - Subsample NxN pixel blocks into a single cell
+    - Passes if there was a previous event within the time window dT in the same block
+    - Can support other events in the same block including itself
     
-    Memory: O(W/N * H/N) - 블록당 하나의 타임스탬프
+    Memory: O(W/N * H/N) - One timestamp per block
     Ops/Event: ~4 (1 read, 1 comparison, 1 write, 1 addition)
     """
     
@@ -516,22 +516,22 @@ class STCF_Sub(BaseEventFilter):
         N = len(events)
         predictions = np.ones(N, dtype=np.uint8)  # Initialize as noise
         
-        # 블록별 마지막 이벤트 타임스탬프 저장
-        # 키: (block_x, block_y), 값: timestamp
+        # Save last event timestamp per block
+        # Key: (block_x, block_y), Value: timestamp
         block_timestamps = {}
         
         for i in range(N):
             x, y, t = x_coords[i], y_coords[i], timestamps[i]
             
-            # 블록 좌표 계산 (subsampling)
+            # Calculate block coordinates (subsampling)
             block_x = x // self.block_size
             block_y = y // self.block_size
             block_key = (block_x, block_y)
             
-            self.hw_ops['addition'] += 2  # 나눗셈 대신 시프트로 근사
+            self.hw_ops['addition'] += 2  # Approximate with shift instead of division
             self.hw_ops['memory_access'] += 1  # read
             
-            # 같은 블록에 이전 이벤트가 있는지 확인
+            # Check if there is a previous event in the same block
             if block_key in block_timestamps:
                 time_diff = t - block_timestamps[block_key]
                 self.hw_ops['addition'] += 1  # subtraction
@@ -555,11 +555,11 @@ class ONF(BaseEventFilter):
     Reference: Khodamoradi & Kastner 2018 IEEE Emerging Topics
     
     Principle: 
-    - lastRowTs[y]: row y의 마지막 이벤트 타임스탬프
-    - lastColTs[x]: column x의 마지막 이벤트 타임스탬프
-    - lastXByRow[y]: row y의 마지막 이벤트 x 좌표
-    - lastYByCol[x]: column x의 마지막 이벤트 y 좌표
-    - 이벤트 통과 조건: 인접 row/col (±1)에서 시간 내 이벤트가 있고, 좌표도 인접(±1)
+    - lastRowTs[y]: Last event timestamp of row y
+    - lastColTs[x]: Last event timestamp of column x
+    - lastXByRow[y]: Last event x-coordinate of row y
+    - lastYByCol[x]: Last event y-coordinate of column x
+    - Event pass condition: Event within time in adjacent row/col (±1) and adjacent coordinates (±1)
     
     Memory: O(W + H)
     """
