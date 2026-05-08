@@ -1,6 +1,6 @@
-# EventSNN: Robust Event-based Signal-Noise Normalization
+# EventGuard: Sparsity-Aware In-Sensor Denoising for Frame-Based Event Vision Sensors
 
-This repository contains the official implementation of the paper: **"Robust Event-based Signal-Noise Normalization using Spiking Neural Networks"**.
+This repository contains the official implementation of the paper: **"EventGuard: Sparsity-Aware In-Sensor Denoising for Frame-Based Event Vision Sensors"**.
 
 ## Quick Start (Demo)
 
@@ -50,13 +50,3 @@ python main_evaluate.py
 Please place your event dataset in the `data/` directory. The expected format is `.npy` event streams.
 Modify `config.py` to point to your data locations if they differ from the default.
 
-## Citation
-If you find this work useful, please cite our paper:
-```bibtex
-@article{eventsnn2026,
-  title={Robust Event-based Signal-Noise Normalization},
-  author={...},
-  journal={...},
-  year={2026}
-}
-```
