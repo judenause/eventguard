@@ -5,8 +5,8 @@ class Config:
     FRAME_HEIGHT = 720
     FPS = 120
     
-    TEST_DATA_FOLDER_50 = '/local_data/EventGuard/EventSNN/data/esd/total/test_50/'
-    TEST_DATA_FOLDER_100 = '/local_data/EventGuard/EventSNN/data/esd/total/test_100/'
+    TEST_DATA_FOLDER_50 = '../data/esd/total/test_50/'
+    TEST_DATA_FOLDER_100 = '../data/esd/total/test_100/'
     DATA_FILE_PATTERN = '*.npy'
     
     FILTER_CONFIGS = {
@@ -17,8 +17,8 @@ class Config:
             'time_window': 0.024,  # 24ms
         },
         'STCF': {
-            'spatial_radius': 1,       # 3x3 영역 (Java 원본)
-            'temporal_window': 0.024,  # 24ms (FPS에 따라 Override)
+            'spatial_radius': 1,       # 3x3 region (Java original)
+            'temporal_window': 0.024,  # 24ms (Overridden by FPS)
             'min_neighbors': 1,        # k=1
         },
         'Refractory': {

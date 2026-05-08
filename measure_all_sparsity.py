@@ -1,9 +1,8 @@
 """
-DVSCLEAN Dataset 전체 Sparsity 측정 스크립트 (L1, L2 포함)
-- Event Rate: 입력 프레임의 Non-zero 비율
-- L1 Spike Rate: SNN 출력의 Spike 비율
-- L2 Effective Sparsity: BNN 출력에서 baseline과 다른 비율
-
+Sparsity Measurement Script for the Entire Dataset (Includes L1, L2)
+- Event Rate: Non-zero ratio of input frames
+- L1 Spike Rate: Spike ratio of SNN output
+- L2 Effective Sparsity: Ratio in BNN output different from the baseline
 Usage: python measure_all_sparsity.py --dataset test_50
 """
 
@@ -16,7 +15,7 @@ import glob
 from collections import OrderedDict
 from tqdm import tqdm
 
-sys.path.insert(0, '/local_data/EventGuard/EventSNN/code/v8_bconvsnn')
+# sys.path.insert(0, './') # Use relative path or standard import if in same dir
 from config import cfg
 from model import Hybrid_SNN_Pure_BNN
 from dataset import EventFrameLazyDataset
@@ -29,30 +28,30 @@ l1_outputs = []
 l2_outputs = []
 
 def l1_spike_hook(module, input, output):
-    """L1 SNN 출력(spike)을 캡처"""
+    """Capture L1 SNN output (spikes)"""
     spike = output[0]  # (spike, mem) tuple
     rate = (spike != 0).float().mean().item()
     l1_outputs.append(rate)
 
 def l2_output_hook(module, input, output):
-    """L2 BNN 출력을 캡처 (BinarizeAct 후)"""
-    # output은 BinarizeAct.apply(cur) 결과: {-1, +1}
-    # Effective Sparsity: 가장 많은 값(baseline)과 다른 비율
+    """Capture L2 BNN output (after BinarizeAct)"""
+    # output is the result of BinarizeAct.apply(cur): {-1, +1}
+    # Effective Sparsity: Ratio different from the most frequent value (baseline)
     out = output.detach()
     
-    # Mode (가장 빈번한 값) 찾기
+    # Find Mode (most frequent value)
     unique, counts = torch.unique(out, return_counts=True)
     mode_val = unique[counts.argmax()].item()
     
-    # Baseline과 다른 비율
+    # Ratio different from Baseline
     diff_rate = (out != mode_val).float().mean().item()
     l2_outputs.append(diff_rate)
 
 # ===================================================================
-# Raw Data Event Rate 확인 (캐시 전 데이터)
+# Check Raw Data Event Rate (Data before caching)
 # ===================================================================
 def check_raw_event_rate(data_folder, num_files=5):
-    """원본 .npy 파일에서 직접 Event Rate 확인"""
+    """Check Event Rate directly from original .npy files"""
     files = sorted(glob.glob(os.path.join(data_folder, '*.npy')))[:num_files]
     
     event_counts = []
@@ -65,15 +64,15 @@ def check_raw_event_rate(data_folder, num_files=5):
     for f in files:
         data = np.load(f, allow_pickle=True)
         
-        # 데이터 구조 확인
+        # Check data structure
         if len(data) > 0:
-            # 첫 번째 아이템 체크
+            # Check the first item
             sample = data[0]
             total_events += len(data)
             
-            # 시간 범위 계산
+            # Calculate time range
             if hasattr(sample, '__len__') and len(sample) >= 4:
-                # [x, y, t, p] 형태
+                # Shape: [x, y, t, p]
                 timestamps = [d[2] for d in data if len(d) >= 4]
                 if timestamps:
                     duration = (max(timestamps) - min(timestamps)) / 1e6  # μs -> s
@@ -98,9 +97,9 @@ def measure_all_sparsity(dataset_name, model_path, fps=30, num_samples=20):
     
     cfg.FPS = fps
     if dataset_name == 'test_50':
-        data_folder = '/local_data/EventGuard/EventSNN/data/esd/total/test_50/'
+        data_folder = './data/esd/total/test_50/'
     elif dataset_name == 'test_100':
-        data_folder = '/local_data/EventGuard/EventSNN/data/esd/total/test_100/'
+        data_folder = './data/esd/total/test_100/'
     else:
         raise ValueError(f"Unknown dataset: {dataset_name}")
     
@@ -108,7 +107,7 @@ def measure_all_sparsity(dataset_name, model_path, fps=30, num_samples=20):
     print(f" Dataset: {dataset_name} | FPS: {fps}")
     print("=" * 60)
     
-    # 0. Raw Data 확인
+    # 0. Check Raw Data
     check_raw_event_rate(data_folder, num_files=3)
     
     # 1. Load Data
@@ -116,7 +115,7 @@ def measure_all_sparsity(dataset_name, model_path, fps=30, num_samples=20):
     frame_lists = process_folder_to_frame_lists(data_folder, '*.npy', dataset_name, cfg)
     dataset = EventFrameLazyDataset(frame_lists[:5], cfg)
     
-    # 직접 프레임 데이터 확인 (processed cache에서)
+    # Check frame data directly (from processed cache)
     cache_dir = f'./processed_cache/{dataset_name}'
     cache_files = sorted(glob.glob(os.path.join(cache_dir, '*.npy')))
     
@@ -153,9 +152,9 @@ def measure_all_sparsity(dataset_name, model_path, fps=30, num_samples=20):
     # Hooks
     handle1 = model.snn_act.register_forward_hook(l1_spike_hook)
     
-    # L2 출력 캡처를 위해 BNN layer 후에 hook 추가
-    # model.bnn_layers[0] 이후의 출력을 캡처하려면 forward 수정 필요
-    # 간단히 forward pass 중에 직접 측정
+    # Add hooks after BNN layer to capture L2 output
+    # Modification to forward is needed to capture output after model.bnn_layers[0]
+    # Simple measurement directly during forward pass instead
     
     model.eval()
     
@@ -199,7 +198,7 @@ def measure_all_sparsity(dataset_name, model_path, fps=30, num_samples=20):
                     from custom_layers import BinarizeAct
                     bnn_output = BinarizeAct.apply(cur)
                     
-                    # L2 Effective Sparsity (첫 번째 BNN layer만)
+                    # L2 Effective Sparsity (First BNN layer only)
                     unique, counts = torch.unique(bnn_output, return_counts=True)
                     mode_val = unique[counts.argmax()].item()
                     diff_rate = (bnn_output != mode_val).float().mean().item()
@@ -228,7 +227,7 @@ def measure_all_sparsity(dataset_name, model_path, fps=30, num_samples=20):
     if l2_outputs:
         print(f"   Min: {min(l2_outputs)*100:.4f}%, Max: {max(l2_outputs)*100:.4f}%")
     
-    # Energy 재계산 (L3도 Sparse 가정)
+    # Energy Re-calculation (Assuming L3 is also Sparse)
     events_per_frame = int(1280 * 720 * avg_event / 100)
     l1_rate = avg_l1 / 100
     l2_rate = avg_l2 / 100
@@ -236,7 +235,7 @@ def measure_all_sparsity(dataset_name, model_path, fps=30, num_samples=20):
     L1_ops = 1 * 16 * 9  # 144
     L2_ops = 16 * 32 * 9 * l1_rate
     L3_ops_dense = (921600 * 32 * 2 * 9) / events_per_frame if events_per_frame > 0 else 0
-    L3_ops_sparse = L3_ops_dense * l2_rate  # L2 sparsity 적용
+    L3_ops_sparse = L3_ops_dense * l2_rate  # Apply L2 sparsity
     
     total_dense = L1_ops + L2_ops + L3_ops_dense
     total_sparse = L1_ops + L2_ops + L3_ops_sparse
@@ -254,7 +253,7 @@ if __name__ == "__main__":
     parser.add_argument('--dataset', type=str, default='test_50')
     parser.add_argument('--fps', type=int, default=30)
     parser.add_argument('--model', type=str, 
-                        default='/local_data/EventGuard/EventSNN/code/v8_bconvsnn/results/reproduction_v5_multigpu_fixedlr/latest_checkpoint.pth')
+                        default='./weights/best_model_v8.pth')
     parser.add_argument('--samples', type=int, default=20)
     args = parser.parse_args()
     

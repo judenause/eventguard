@@ -57,7 +57,7 @@ classical_filters/
 
 Evaluate all filters on test_50 dataset:
 ```bash
-cd /local_data/EventGuard/EventSNN/code/classical_filters
+cd classical_filters
 python evaluate_filters.py --test_folder test_50
 ```
 
